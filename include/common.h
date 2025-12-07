@@ -1,0 +1,11 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+#define STATUS_SUCCESS 0
+#define STATUS_ERROR -1
+#define STATUS_NETWORK_ERROR 1
+#define STATUS_AUTHENTICATION_ERROR 2
+#define STATUS_FILE_ERROR 3
+
+#endif
+
