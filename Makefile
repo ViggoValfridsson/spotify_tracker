@@ -1,12 +1,15 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Iinclude
+CFLAGS = -Wall -Wextra -Iinclude $(addprefix -I,$(wildcard lib/*))
 DEBUGFLAGS = -g -O0
 RELEASEFLAGS = -O2
+LDFLAGS = -lm
 
-SRC = $(wildcard src/*.c)
+SRCS = $(wildcard src/*.c)
+LIBSRCS = $(wildcard lib/*/*.c)
 OBJDIR = obj
 BINDIR = bin
-OBJ = $(patsubst src/%.c,$(OBJDIR)/%.o,$(SRC))
+OBJS = $(SRCS:src/%.c=$(OBJDIR)/%.o)
+LIBOBJS = $(LIBSRCS:lib/%.c=$(OBJDIR)/%.o)
 TARGET = $(BINDIR)/spotify_tracker
 
 ifeq ($(DEBUG),1)
@@ -17,10 +20,15 @@ endif
 
 all: $(TARGET)
 
-$(TARGET): $(OBJ) | $(BINDIR)
-	$(CC) $(CFLAGS) -o $@ $^
+$(TARGET): $(OBJS) $(LIBOBJS) | $(BINDIR)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJDIR)/%.o: src/%.c | $(OBJDIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/%.o: lib/%.c | $(OBJDIR)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR):
@@ -31,3 +39,5 @@ $(BINDIR):
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR)
+
+.PHONY: all clean

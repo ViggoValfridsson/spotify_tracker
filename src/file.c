@@ -28,7 +28,7 @@ int expand_file_name(char *file_name, char **resolved_name_out) {
     char *home = getenv("HOME");
 
     if (!home) {
-        fprintf(stderr, "Home directory environment variable not set");
+        fprintf(stderr, "Home directory environment variable not set\n");
         return STATUS_ERROR;
     }
 
@@ -36,7 +36,7 @@ int expand_file_name(char *file_name, char **resolved_name_out) {
     int result = snprintf(resolved_name, sizeof(resolved_name), "%s%s", home, file_name + 1);
 
     if (result > MAX_FILE_PATH) {
-        fprintf(stderr, "Credentials file path is too long. Max path length is %d", MAX_FILE_PATH);
+        fprintf(stderr, "Credentials file path is too long. Max path length is %d\n", MAX_FILE_PATH);
         return STATUS_ERROR;
     }
     if (result < 0) {
