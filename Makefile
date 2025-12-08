@@ -1,8 +1,9 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude $(addprefix -I,$(wildcard lib/*))
+LIBCFLAGS = -w -Iinclude $(addprefix -I,$(wildcard lib/*))
 DEBUGFLAGS = -g -O0
 RELEASEFLAGS = -O2
-LDFLAGS = -lm
+LDFLAGS = -lm -lcurl
 
 SRCS = $(wildcard src/*.c)
 LIBSRCS = $(wildcard lib/*/*.c)
@@ -14,8 +15,10 @@ TARGET = $(BINDIR)/spotify_tracker
 
 ifeq ($(DEBUG),1)
     CFLAGS += $(DEBUGFLAGS)
+    LIBCFLAGS += $(DEBUGFLAGS)  # ADDED: Apply debug flags to libs too
 else
     CFLAGS += $(RELEASEFLAGS)
+    LIBCFLAGS += $(RELEASEFLAGS)  # ADDED: Apply release flags to libs too
 endif
 
 all: $(TARGET)
@@ -29,7 +32,7 @@ $(OBJDIR)/%.o: src/%.c | $(OBJDIR)
 
 $(OBJDIR)/%.o: lib/%.c | $(OBJDIR)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(LIBCFLAGS) -c $< -o $@
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)

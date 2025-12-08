@@ -1,10 +1,14 @@
 # Work in progress
  
-This project is not done and no functionality is guaranteed to work.
+This project is not done and no functionality is guaranteed to work. This README is currently in an unfinished state.
 
 # Spotify Tracker
 
 A simple C program that fetches your top artists and songs and writes them to a github gist.
+
+## Dependencies
+
+Make sure you have libcurl installed
 
 ## Running the program
 

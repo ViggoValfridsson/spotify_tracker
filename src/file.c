@@ -3,8 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <curl/curl.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+
+#include "cJSON.h"
 #include "file.h"
 #include "common.h"
+#include "network.h"
 
 #define MAX_FILE_PATH 2048
 
@@ -35,7 +43,7 @@ int expand_file_name(char *file_name, char **resolved_name_out) {
     char resolved_name[MAX_FILE_PATH];
     int result = snprintf(resolved_name, sizeof(resolved_name), "%s%s", home, file_name + 1);
 
-    if (result > MAX_FILE_PATH) {
+    if (result >= MAX_FILE_PATH) {
         fprintf(stderr, "Credentials file path is too long. Max path length is %d\n", MAX_FILE_PATH);
         return STATUS_ERROR;
     }
@@ -128,5 +136,58 @@ int read_file_content(char *file_path, char **file_content) {
     }
 
     *file_content = data;
+    return STATUS_SUCCESS;
+}
+
+int read_credentials_json(char *file_content, client_credentials **credentials_out) {
+    cJSON *json = cJSON_Parse(file_content);
+
+    if (!json) {
+        fprintf(stderr, "File did not contain valid JSON\n");
+        return STATUS_FILE_ERROR;
+    }
+
+    cJSON *client_id = cJSON_GetObjectItemCaseSensitive(json, "clientId");
+    cJSON *client_secret = cJSON_GetObjectItemCaseSensitive(json, "clientSecret");
+
+    if (!cJSON_IsString(client_id) || !cJSON_IsString(client_secret)) {
+        cJSON_Delete(json);
+        return STATUS_FILE_ERROR;
+    }
+
+    client_credentials *credentials = malloc(sizeof(client_credentials));
+
+    if (credentials == NULL) {
+        cJSON_Delete(json);
+        perror("malloc");
+        return STATUS_ERROR;
+    }
+
+    snprintf(credentials->client_id, sizeof(credentials->client_id), "%s", client_id->valuestring);
+    snprintf(credentials->client_secret, sizeof(credentials->client_secret), "%s", client_secret->valuestring);
+
+    cJSON_Delete(json);
+
+    *credentials_out = credentials;
+    return STATUS_SUCCESS;
+}
+
+int read_credentials_from_file(char *credentials_file_path, client_credentials **credentials_out) {
+    char *file_content;
+
+    if (read_file_content(credentials_file_path, &file_content) != STATUS_SUCCESS) {
+        return STATUS_FILE_ERROR;
+    }
+
+    client_credentials *credentials;
+
+    if (read_credentials_json(file_content, &credentials) != STATUS_SUCCESS) {
+        free(file_content);
+        return STATUS_FILE_ERROR;
+    }
+
+    free(file_content);
+
+    *credentials_out = credentials;
     return STATUS_SUCCESS;
 }
