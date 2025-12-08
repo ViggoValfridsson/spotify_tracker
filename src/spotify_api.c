@@ -21,11 +21,21 @@ int get_token() {
 
     struct curl_slist *header = NULL;
     append_basic_header(credentials->client_id, credentials->client_secret, &header);
-    
 
+    // TODO: remove these prints
     printf("%s\n", credentials->client_id);
     printf("%s\n", credentials->client_secret);
     printf("%s\n", header->data);
+
+    char *body; /* TODO implent this to set grant type. = get_form_url_encoded_body(); */
+
+    char *response;
+    if (post(AUTH_ENDPOINT, header, body, &response) != STATUS_SUCCESS) {
+        // TODO: remove this printf
+        printf("Post failed\n");
+    } else {
+        printf("http request was successful\n");
+    }
 
     free(credentials);
     return STATUS_SUCCESS;

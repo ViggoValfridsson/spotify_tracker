@@ -15,6 +15,6 @@ typedef struct {
 } client_credentials;
 
 int append_basic_header(char *username, char *password, struct curl_slist **header_out);
-int post(char *url, struct curl_slist *headers);
+int post(char *url, struct curl_slist *headers, const char *body, char **response_out);
 
 #endif
