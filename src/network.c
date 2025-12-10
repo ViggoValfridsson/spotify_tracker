@@ -1,34 +1,82 @@
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "cencode.h"
 #include "common.h"
+#include "encoding.h"
 #include "network.h"
 
 #define CREDENTIALS_MAX 1024
-// Worst case scenario base64 growth
-#define BASE64_CREDENTIALS_MAX ((CREDENTIALS_MAX) * 2 + 4)
-// Make space for "Authorization: Basic  "
-#define BASIC_HEADER_MAX (BASE64_CREDENTIALS_MAX + 22)
 
-int base64_encode(char *input, int input_len, char **base64_out) {
-    base64_encodestate state;
-    base64_init_encodestate(&state);
-    char *output = malloc(BASE64_CREDENTIALS_MAX);
+int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out) {
+    char *encoded_key;
+    char *encoded_value;
+    int key_len = strlen(kvp->key);
+    int value_len = strlen(kvp->value);
 
-    if (!output) {
-        perror("malloc");
+    if (url_encode(kvp->key, key_len, &encoded_key) != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to url encode key\n");
+        return STATUS_ERROR;
+    }
+    if (url_encode(kvp->value, value_len, &encoded_value) != STATUS_SUCCESS) {
+        free(encoded_key);
+        fprintf(stderr, "Failed to url encode value\n");
         return STATUS_ERROR;
     }
 
-    int count = base64_encode_block(input, input_len, output, &state);
-    count += base64_encode_blockend(output + count, &state);
+    *key_out = encoded_key;
+    *value_out = encoded_value;
+    return strlen(encoded_key) + strlen(encoded_value);
+}
 
-    output[count] = '\0';
-    *base64_out = output;
+// TODO: split up this function
+int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **body_out) {
+    char *body = NULL;
+    size_t body_size = 0;
+
+    for (int i = 0; i < kvp_len; i++) {
+        form_key_value_pair kvp = kvps[i];
+        char *encoded_key;
+        char *encoded_value;
+        int encoded_len = url_encode_kvp(&kvp, &encoded_key, &encoded_value);
+
+        if (encoded_len == -1) {
+            if (body) {
+                free(body);
+            }
+            return STATUS_ERROR;
+        }
+
+	// TODO: Make a cleaner solution for extra chars. This is to account for & and = in result
+	int extra_chars = i == 1 ? 1 : 2; 
+        body_size += encoded_len + extra_chars;
+        char *tmp = realloc(body, body_size);
+
+        if (!tmp) {
+            if (body) {
+                free(body);
+            }
+            perror("realloc");
+            return STATUS_ERROR;
+        }
+        body = tmp;
+
+	char tmp_body[body_size];
+        if (i == 0) {
+            snprintf(tmp_body, body_size, "%s=%s", encoded_key, encoded_value);
+        } else {
+            snprintf(tmp_body, body_size, "%s&%s=%s", body, encoded_key, encoded_value);
+        }
+	strncpy(body, tmp_body, body_size);
+
+        free(encoded_key);
+        free(encoded_value);
+    }
+
+    *body_out = body;
     return STATUS_SUCCESS;
 }
 
@@ -43,13 +91,15 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
     }
 
     char *base64_credentials;
-    if (base64_encode(credentials, snprint_res, &base64_credentials)) {
+    int base64_size = base64_encode(credentials, snprint_res, &base64_credentials);
+    if (base64_size == STATUS_ERROR) {
         return STATUS_ERROR;
     }
 
-    char basic_header[BASIC_HEADER_MAX];
-    if (snprintf(basic_header, sizeof(basic_header), "Authorization: Basic %s", base64_credentials) >=
-        BASIC_HEADER_MAX) {
+    // 22 to make space for "Authorization: Basic  "
+    int header_len = base64_size + 22;
+    char basic_header[header_len];
+    if (snprintf(basic_header, sizeof(basic_header), "Authorization: Basic %s", base64_credentials) >= header_len) {
         fprintf(stderr, "Basic header result is too long\n");
         return STATUS_ERROR;
     }

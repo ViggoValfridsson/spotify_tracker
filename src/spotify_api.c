@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #include "common.h"
 #include "file.h"
@@ -20,23 +21,41 @@ int get_token() {
     }
 
     struct curl_slist *header = NULL;
-    append_basic_header(credentials->client_id, credentials->client_secret, &header);
-
-    // TODO: remove these prints
-    printf("%s\n", credentials->client_id);
-    printf("%s\n", credentials->client_secret);
-    printf("%s\n", header->data);
-
-    char *body; /* TODO implent this to set grant type. = get_form_url_encoded_body(); */
-
-    char *response;
-    if (post(AUTH_ENDPOINT, header, body, &response) != STATUS_SUCCESS) {
-        // TODO: remove this printf
-        printf("Post failed\n");
-    } else {
-        printf("http request was successful\n");
+    if (append_basic_header(credentials->client_id, credentials->client_secret, &header) != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to create auth headers\n");
+        return STATUS_ERROR;
     }
 
+    char *body;
+    form_key_value_pair grant_type = {
+        .key = "grant_type",
+        .value = "client_credentials"
+    };
+
+    if (create_form_url_encoded_body(&grant_type, 1, &body) != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to URL encode body\n");
+        free(credentials);
+        return STATUS_ERROR;
+    }
+
+    // TODO: remove this body
+    printf("Body %s\n", body);
+
+    char *response;
+    int post_status = post(AUTH_ENDPOINT, header, body, &response);
+
+    if (post_status != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to post token request\n");
+        free(body);
+        free(credentials);
+        return post_status;
+    }
+
+    printf("http request was successful\n");
+
+    // TODO: do we need to free as well *header, if so do it in all fail cases as well?
+    // TODO: use goto to make freeing cleaner
+    free(body);
     free(credentials);
     return STATUS_SUCCESS;
 }
