@@ -50,8 +50,8 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
             return STATUS_ERROR;
         }
 
-	// TODO: Make a cleaner solution for extra chars. This is to account for & and = in result
-	int extra_chars = i == 1 ? 1 : 2; 
+        // TODO: Make a cleaner solution for extra chars. This is to account for & and = in result
+        int extra_chars = i == 1 ? 1 : 2;
         body_size += encoded_len + extra_chars;
         char *tmp = realloc(body, body_size);
 
@@ -64,13 +64,13 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
         }
         body = tmp;
 
-	char tmp_body[body_size];
+        char tmp_body[body_size];
         if (i == 0) {
             snprintf(tmp_body, body_size, "%s=%s", encoded_key, encoded_value);
         } else {
             snprintf(tmp_body, body_size, "%s&%s=%s", body, encoded_key, encoded_value);
         }
-	strncpy(body, tmp_body, body_size);
+        strncpy(body, tmp_body, body_size);
 
         free(encoded_key);
         free(encoded_value);
