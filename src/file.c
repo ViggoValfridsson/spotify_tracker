@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #include "cJSON.h"
@@ -24,28 +25,35 @@ void print_fopen_error() {
 
 // Expand ~ to actual home directory path
 int expand_file_name(char *file_name, char **resolved_name_out) {
-    if (file_name[0] != '~') {
-        *resolved_name_out = file_name;
-        return STATUS_SUCCESS;
-    }
-
-    char *home = getenv("HOME");
-
-    if (!home) {
-        fprintf(stderr, "Home directory environment variable not set\n");
-        return STATUS_ERROR;
-    }
-
     char *resolved_name = malloc(MAX_FILE_PATH);
-    int result = snprintf(resolved_name, MAX_FILE_PATH, "%s%s", home, file_name + 1);
 
-    if (result >= MAX_FILE_PATH) {
-        fprintf(stderr, "Credentials file path is too long. Max path length is %d\n", MAX_FILE_PATH);
+    if (!resolved_name) {
         return STATUS_ERROR;
     }
-    if (result < 0) {
-        perror("snprintf");
-        return STATUS_ERROR;
+
+    if (file_name[0] != '~') {
+        strcpy(resolved_name, file_name);
+    } else {
+        char *home = getenv("HOME");
+
+        if (!home) {
+            fprintf(stderr, "Home directory environment variable not set\n");
+            free(resolved_name);
+            return STATUS_ERROR;
+        }
+
+        int result = snprintf(resolved_name, MAX_FILE_PATH, "%s%s", home, file_name + 1);
+
+        if (result >= MAX_FILE_PATH) {
+            fprintf(stderr, "Credentials file path is too long. Max path length is %d\n", MAX_FILE_PATH);
+            free(resolved_name);
+            return STATUS_ERROR;
+        }
+        if (result < 0) {
+            perror("snprintf");
+            free(resolved_name);
+            return STATUS_ERROR;
+        }
     }
 
     *resolved_name_out = resolved_name;
