@@ -19,12 +19,14 @@ int get_token() {
     char *response = NULL;
     int return_value = STATUS_ERROR;
 
-    if (read_credentials_from_file(CREDENTIALS_FILE_PATH, &credentials) != STATUS_SUCCESS) {
+    return_value = read_credentials_from_file(CREDENTIALS_FILE_PATH, &credentials);
+    if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read credentials\n");
         goto cleanup;
     }
 
-    if (append_basic_header(credentials->client_id, credentials->client_secret, &header) != STATUS_SUCCESS) {
+    return_value = append_basic_header(credentials->client_id, credentials->client_secret, &header);
+    if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create auth headers\n");
         goto cleanup;
     }
@@ -34,19 +36,15 @@ int get_token() {
         .value = "client_credentials"
     };
 
-    if (create_form_url_encoded_body(&grant_type, 1, &body) != STATUS_SUCCESS) {
+    return_value = create_form_url_encoded_body(&grant_type, 1, &body);
+    if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
     }
 
-    // TODO: remove this print
-    printf("Body %s\n", body);
-
-    int post_status = post(AUTH_ENDPOINT, header, body, &response);
-
-    if (post_status != STATUS_SUCCESS) {
+    return_value = post(AUTH_ENDPOINT, header, body, &response);
+    if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to post token request\n");
-        return_value = post_status;
         goto cleanup;
     }
 
