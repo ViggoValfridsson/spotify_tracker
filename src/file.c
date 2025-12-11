@@ -1,17 +1,13 @@
-#include <errno.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <curl/curl.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 
 #include "cJSON.h"
-#include "file.h"
 #include "common.h"
+#include "file.h"
 #include "network.h"
 
 #define MAX_FILE_PATH 2048

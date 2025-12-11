@@ -31,10 +31,7 @@ int get_token() {
         goto cleanup;
     }
 
-    form_key_value_pair grant_type = {
-        .key = "grant_type",
-        .value = "client_credentials"
-    };
+    form_key_value_pair grant_type = {.key = "grant_type", .value = "client_credentials"};
 
     return_value = create_form_url_encoded_body(&grant_type, 1, &body);
     if (return_value != STATUS_SUCCESS) {
