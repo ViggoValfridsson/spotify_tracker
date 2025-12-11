@@ -13,20 +13,22 @@
 #define AUTH_ENDPOINT "https://accounts.spotify.com/api/token"
 
 int get_token() {
-    client_credentials *credentials;
+    client_credentials *credentials = NULL;
+    struct curl_slist *header = NULL;
+    char *body = NULL;
+    char *response = NULL;
+    int return_value = STATUS_ERROR;
 
     if (read_credentials_from_file(CREDENTIALS_FILE_PATH, &credentials) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read credentials\n");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
-    struct curl_slist *header = NULL;
     if (append_basic_header(credentials->client_id, credentials->client_secret, &header) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create auth headers\n");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
-    char *body;
     form_key_value_pair grant_type = {
         .key = "grant_type",
         .value = "client_credentials"
@@ -34,30 +36,30 @@ int get_token() {
 
     if (create_form_url_encoded_body(&grant_type, 1, &body) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
-        free(credentials);
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
-    // TODO: remove this body
+    // TODO: remove this print
     printf("Body %s\n", body);
 
-    char *response;
     int post_status = post(AUTH_ENDPOINT, header, body, &response);
 
     if (post_status != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to post token request\n");
-        free(body);
-        free(credentials);
-        return post_status;
+        return_value = post_status;
+        goto cleanup;
     }
 
-    printf("http request was successful\n");
+    return_value = STATUS_SUCCESS;
 
-    // TODO: do we need to free as well *header, if so do it in all fail cases as well?
-    // TODO: use goto to make freeing cleaner
+cleanup:
+    // TODO: Uncomment this once post actually allocates response
+    // free(response);
     free(body);
+    curl_slist_free_all(header);
     free(credentials);
-    return STATUS_SUCCESS;
+
+    return return_value;
 }
 
 int get_top_artists() {
