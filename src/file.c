@@ -40,8 +40,8 @@ int expand_file_name(char *file_name, char **resolved_name_out) {
         return STATUS_ERROR;
     }
 
-    char resolved_name[MAX_FILE_PATH];
-    int result = snprintf(resolved_name, sizeof(resolved_name), "%s%s", home, file_name + 1);
+    char *resolved_name = malloc(MAX_FILE_PATH);
+    int result = snprintf(resolved_name, MAX_FILE_PATH, "%s%s", home, file_name + 1);
 
     if (result >= MAX_FILE_PATH) {
         fprintf(stderr, "Credentials file path is too long. Max path length is %d\n", MAX_FILE_PATH);
@@ -67,11 +67,12 @@ int open_file(char *file_name, FILE **file_out) {
     FILE *file = fopen(resolved_name, "r");
 
     if (!file) {
-
+        free(resolved_name);
         print_fopen_error();
         return STATUS_FILE_ERROR;
     }
 
+    free(resolved_name);
     *file_out = file;
     return STATUS_SUCCESS;
 }
