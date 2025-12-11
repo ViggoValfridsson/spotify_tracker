@@ -11,6 +11,10 @@
 
 #define CREDENTIALS_MAX 1024
 
+typedef struct {
+
+}  ;
+
 int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out) {
     char *encoded_key;
     char *encoded_value;
@@ -51,7 +55,7 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
         }
 
         // TODO: Make a cleaner solution for extra chars. This is to account for & and = in result
-        int extra_chars = i == 1 ? 1 : 2;
+        int extra_chars = i == 0 ? 1 : 2; // account for = and/or &
         body_size += encoded_len + extra_chars;
         char *tmp = realloc(body, body_size);
 
