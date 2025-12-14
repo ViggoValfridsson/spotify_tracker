@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "common.h"
 #include "encoding.h"
 #include "network.h"
@@ -15,6 +16,11 @@ typedef struct {
     char *key;
     char *value;
 } encoded_kvp;
+
+typedef struct {
+    char *data;
+    size_t size;
+} response_chunks;
 
 int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out, int *encoded_len_out) {
     char *encoded_key;
@@ -173,7 +179,23 @@ int get_status(int http_code) {
     }
 }
 
-// TODO: implement returning response
+int read_response_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t real_size = size * nmemb;
+    response_chunks *chunks = (response_chunks *)userp;
+
+    chunks->data = realloc(chunks->data, chunks->size + real_size + 1);
+    if (!chunks->data) {
+        perror("realloc");
+        return STATUS_ERROR;
+    }
+
+    memcpy(&(chunks->data[chunks->size]), contents, real_size);
+    chunks->size = real_size;
+    chunks->data[chunks->size] = '\0';
+
+    return real_size;
+}
+
 int post(char *url, struct curl_slist *headers, const char *body, char **response_out) {
     CURL *curl = curl_easy_init();
     if (!curl) {
@@ -196,6 +218,10 @@ int post(char *url, struct curl_slist *headers, const char *body, char **respons
     }
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
 
+    response_chunks response_body = {.size = 0};
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, read_response_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response_body);
+
     CURLcode result = curl_easy_perform(curl);
 
     long http_code = 0;
@@ -206,10 +232,47 @@ int post(char *url, struct curl_slist *headers, const char *body, char **respons
     }
 
     curl_easy_cleanup(curl);
-
-    if (result != CURLE_OK) {
-        return STATUS_NETWORK_ERROR;
+    if (response_body.data) {
+        *response_out = response_body.data;
     }
 
-    return get_status(http_code);
+    return result == CURLE_OK ? get_status(http_code) : STATUS_NETWORK_ERROR;
+}
+
+int parse_token_response(char *input, token_response **token_out) {
+    cJSON *json = NULL;
+    int return_value = STATUS_ERROR;
+
+    json = cJSON_Parse(input);
+    if (!json) {
+        fprintf(stderr, "Response did not contain valid JSON\n");
+        goto cleanup;
+    }
+
+    cJSON *access_token = cJSON_GetObjectItemCaseSensitive(json, "access_token");
+    cJSON *token_type = cJSON_GetObjectItemCaseSensitive(json, "token_type");
+    cJSON *expires_in = cJSON_GetObjectItemCaseSensitive(json, "expires_in");
+
+    if (!cJSON_IsString(access_token) || !cJSON_IsString(token_type) || !cJSON_IsNumber(expires_in)) {
+        fprintf(stderr, "Response was not in valid JSON structure\n");
+        goto cleanup;
+    }
+
+    token_response *token = malloc(sizeof(token_response));
+
+    if (token == NULL) {
+        perror("malloc");
+        goto cleanup;
+    }
+
+    snprintf(token->access_token, sizeof(token->access_token), "%s", access_token->valuestring);
+    snprintf(token->token_type, sizeof(token->token_type), "%s", token_type->valuestring);
+    token->expires_in = expires_in->valueint;
+
+    *token_out = token;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    cJSON_Delete(json);
+    return return_value;
 }
