@@ -12,7 +12,7 @@ Make sure you have libcurl installed
 
 ## Running the program
 
-1. Setup a spotify app (you can set redirect URIs to anything, we will not use it). https://developer.spotify.com/documentation/web-api/concepts/apps
+1. Setup a spotify app and add "https://httpbin.org/anything" to allowed redirect URIs. https://developer.spotify.com/documentation/web-api/concepts/apps
 2. Create credentials file at `~/.config/spotify-tracker/credentials`. (This will be replaced by option to automatically create this file)
 3. Add this to credentials file
 

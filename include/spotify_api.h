@@ -2,7 +2,7 @@
 #define SPOTIFY_API_H
 
 #define CREDENTIALS_FILE_PATH "~/.config/spotify-tracker/credentials"
-int get_top_artists();
+int login();
 
 #endif
 

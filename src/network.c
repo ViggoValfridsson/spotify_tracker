@@ -11,6 +11,8 @@
 #include "network.h"
 
 #define CREDENTIALS_MAX 1024
+// 22 to make space for "Authorization: Basic  "
+#define BASIC_HEADER_PREFIX_LEN 22
 
 typedef struct {
     char *key;
@@ -105,7 +107,7 @@ void write_encoded_kvps_to_body(char *body, encoded_kvp *encoded_kvps, int kvp_l
     body[position] = '\0';
 }
 
-int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **body_out) {
+int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
     encoded_kvp *encoded_kvps = NULL;
     size_t encoded_size;
 
@@ -113,7 +115,8 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
         return STATUS_ERROR;
     }
 
-    char *body = malloc(encoded_size + 1);
+    size_t real_size = encoded_size + 1;
+    char *body = malloc(real_size);
 
     if (!body) {
         perror("malloc");
@@ -124,36 +127,70 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
     write_encoded_kvps_to_body(body, encoded_kvps, kvp_len);
 
     *body_out = body;
+    *size_out = real_size;
     cleanup_encoded_kvps(encoded_kvps, kvp_len);
 
     return STATUS_SUCCESS;
 }
 
+int append_query_params(char *base_url, int base_url_len, form_key_value_pair *parameters, int parameter_len,
+                        char **endpoint_out) {
+    size_t encoded_params_len;
+    char *encoded_parameters = NULL;
+
+    int return_value =
+        create_form_url_encoded_kvps(parameters, parameter_len, &encoded_parameters, &encoded_params_len);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    // Since both of these lens include null terminator we have space for adding '?' before query params
+    int endpoint_len = base_url_len + encoded_params_len;
+
+    char *endpoint = malloc(endpoint_len);
+    if (!endpoint) {
+        goto cleanup;
+    }
+
+    snprintf(endpoint, endpoint_len, "%s?%s", base_url, encoded_parameters);
+    *endpoint_out = endpoint;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(encoded_parameters);
+    return return_value;
+}
+
 int append_basic_header(char *username, char *password, struct curl_slist **header_out) {
     char credentials[CREDENTIALS_MAX];
+    char *basic_header = NULL;
+    char *base64_credentials = NULL;
     int snprint_res = snprintf(credentials, sizeof(credentials), "%s:%s", username, password);
+    int return_value = STATUS_ERROR;
 
     if (snprint_res >= CREDENTIALS_MAX) {
         fprintf(stderr, "Credentials are too long. Max length of password and username combined is %d\n",
                 CREDENTIALS_MAX);
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
-    char *base64_credentials;
     int base64_size = base64_encode(credentials, snprint_res, &base64_credentials);
     if (base64_size == STATUS_ERROR) {
-        return STATUS_ERROR;
+        fprintf(stderr, "Failed to base64 encode basic header\n");
+        goto cleanup;
     }
 
-    // 22 to make space for "Authorization: Basic  "
-    int header_len = base64_size + 22;
-    char basic_header[header_len];
-    if (snprintf(basic_header, sizeof(basic_header), "Authorization: Basic %s", base64_credentials) >= header_len) {
+    int header_len = base64_size + BASIC_HEADER_PREFIX_LEN;
+    basic_header = malloc(header_len);
+    if (!basic_header) {
+        perror("malloc");
+        goto cleanup;
+    }
+
+    if (snprintf(basic_header, header_len, "Authorization: Basic %s", base64_credentials) >= header_len) {
         fprintf(stderr, "Basic header result is too long\n");
-        return STATUS_ERROR;
+        goto cleanup;
     }
-
-    free(base64_credentials);
 
     struct curl_slist *header = curl_slist_append(*header_out, basic_header);
     if (!header) {
@@ -162,7 +199,44 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
     }
 
     *header_out = header;
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(base64_credentials);
+    free(basic_header);
+
+    return return_value;
+}
+
+int append_content_type_header(char *content_type, struct curl_slist **header_out) {
+    int return_value = STATUS_ERROR;
+    int content_type_prefix_len = strlen("Content-Type: ");
+    int content_type_value_len = strlen(content_type);
+    int total_size = content_type_prefix_len + content_type_value_len + 1;
+
+    char *content_type_header = malloc(total_size);
+    if (!content_type_header) {
+        perror("malloc");
+        goto cleanup;
+    }
+
+    if (snprintf(content_type_header, total_size, "Content-Type: %s", content_type) >= total_size) {
+        fprintf(stderr, "Basic header result is too long\n");
+        goto cleanup;
+    }
+
+    struct curl_slist *header = curl_slist_append(*header_out, content_type_header);
+    if (!header) {
+        fprintf(stderr, "Failed to append header\n");
+        return STATUS_ERROR;
+    }
+
+    *header_out = header;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(content_type_header);
+    return return_value;
 }
 
 int get_status(int http_code) {
@@ -202,6 +276,9 @@ int post(char *url, struct curl_slist *headers, const char *body, char **respons
         fprintf(stderr, "Failed to initialize curl\n");
         return STATUS_NETWORK_ERROR;
     }
+
+    // Uncomment this to enable verbose logging
+    // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
@@ -250,22 +327,24 @@ int parse_token_response(char *input, token_response **token_out) {
     }
 
     cJSON *access_token = cJSON_GetObjectItemCaseSensitive(json, "access_token");
+    cJSON *refresh_token = cJSON_GetObjectItemCaseSensitive(json, "refresh_token");
     cJSON *token_type = cJSON_GetObjectItemCaseSensitive(json, "token_type");
     cJSON *expires_in = cJSON_GetObjectItemCaseSensitive(json, "expires_in");
 
-    if (!cJSON_IsString(access_token) || !cJSON_IsString(token_type) || !cJSON_IsNumber(expires_in)) {
+    if (!cJSON_IsString(access_token) || !cJSON_IsString(refresh_token) || !cJSON_IsString(token_type) ||
+        !cJSON_IsNumber(expires_in)) {
         fprintf(stderr, "Response was not in valid JSON structure\n");
         goto cleanup;
     }
 
     token_response *token = malloc(sizeof(token_response));
-
     if (token == NULL) {
         perror("malloc");
         goto cleanup;
     }
 
     snprintf(token->access_token, sizeof(token->access_token), "%s", access_token->valuestring);
+    snprintf(token->refresh_token, sizeof(token->refresh_token), "%s", refresh_token->valuestring);
     snprintf(token->token_type, sizeof(token->token_type), "%s", token_type->valuestring);
     token->expires_in = expires_in->valueint;
 
