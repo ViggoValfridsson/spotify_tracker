@@ -15,11 +15,12 @@
 #define AUTHORIZE_ENDPOINT_BASE "https://accounts.spotify.com/authorize"
 // Includes null terminator
 #define AUTHORIZE_ENDPOINT_BASE_LEN 40
-#define AUTHORIZE_ENDPOINT_KVP_LEN 4
+#define AUTHORIZE_PARAMETERS_LEN 4
 // This application is not listening to this url
 #define REDIRECT_URI "https://httpbin.org/anything"
+#define TOKEN_ENDPOINT_FORM_BODY_LEN 3
 
-int get_token(token_response **token_out) {
+int get_token(char *code, token_response **token_out) {
     client_credentials *credentials = NULL;
     struct curl_slist *header = NULL;
     char *body = NULL;
@@ -34,14 +35,22 @@ int get_token(token_response **token_out) {
 
     return_value = append_basic_header(credentials->client_id, credentials->client_secret, &header);
     if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to create auth headers\n");
+        fprintf(stderr, "Failed to create basic auth header\n");
         goto cleanup;
     }
 
-    form_key_value_pair grant_type = {.key = "grant_type", .value = "client_credentials"};
+    return_value = append_content_type_header("application/x-www-form-urlencoded", &header);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to create content-type header\n");
+        goto cleanup;
+    }
+
+    form_key_value_pair body_kvps[TOKEN_ENDPOINT_FORM_BODY_LEN] = {
+        {"code", ""}, {"grant_type", "authorization_code"}, {"redirect_uri", REDIRECT_URI}};
+    snprintf(body_kvps[0].value, sizeof(body_kvps[0].value), "%s", code);
     size_t unused_len;
 
-    return_value = create_form_url_encoded_kvps(&grant_type, 1, &body, &unused_len);
+    return_value = create_form_url_encoded_kvps(body_kvps, TOKEN_ENDPOINT_FORM_BODY_LEN, &body, &unused_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
@@ -56,6 +65,7 @@ int get_token(token_response **token_out) {
     return_value = parse_token_response(response, &token);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to parse token response\n");
+        goto cleanup;
     }
 
     return_value = STATUS_SUCCESS;
@@ -79,7 +89,7 @@ int create_authorization_endpoint(char **endpoint_out) {
         goto cleanup;
     }
 
-    form_key_value_pair query_parameters[AUTHORIZE_ENDPOINT_KVP_LEN] = {
+    form_key_value_pair query_parameters[AUTHORIZE_PARAMETERS_LEN] = {
         {"client_id", ""},
         {"response_type", "code"},
         {"redirect_uri", REDIRECT_URI},
@@ -89,7 +99,7 @@ int create_authorization_endpoint(char **endpoint_out) {
 
     char *endpoint;
     return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, AUTHORIZE_ENDPOINT_BASE_LEN, query_parameters,
-                                       AUTHORIZE_ENDPOINT_KVP_LEN, &endpoint);
+                                       AUTHORIZE_PARAMETERS_LEN, &endpoint);
     if (return_value != STATUS_SUCCESS) {
         goto cleanup;
     }
@@ -103,11 +113,9 @@ cleanup:
     return return_value;
 }
 
-int login() {
+int authorize_application(char **redirect_code_out) {
     char *authorization_endpoint = NULL;
     char *redirect_code = NULL;
-    char *redirect_state = NULL;
-    token_response *token = NULL;
     int return_value = STATUS_ERROR;
 
     return_value = create_authorization_endpoint(&authorization_endpoint);
@@ -119,24 +127,44 @@ int login() {
     int max_input_len = 255;
 
     printf("Please confirm the authentication: %s\n", authorization_endpoint);
-    get_input("Enter \"code\" from the redirect URI query params\n", max_input_len, &redirect_code);
-    get_input("Enter \"state\" from the redirect URI query params\n", max_input_len, &redirect_state);
+    return_value = get_input("Enter \"code\" from the redirect URI query params\n", max_input_len, &redirect_code);
 
-    printf("%s\n", redirect_code);
-    printf("%s\n", redirect_state);
-
-    // TODO: maybe refactor this?
-    if (get_token(&token) != STATUS_SUCCESS) {
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to read code from input\n");
         goto cleanup;
     }
+
+    *redirect_code_out = redirect_code;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(authorization_endpoint);
+
+    return return_value;
+}
+
+int login() {
+    char *redirect_code = NULL;
+    token_response *token = NULL;
+
+    int return_value = authorize_application(&redirect_code);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    if (get_token(redirect_code, &token) != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    // TODO:
+    // 1. Save refresh token. In file?
+    // 2. Use refresh token to get access token when making real requests
 
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(token);
-    free(authorization_endpoint);
     free(redirect_code);
-    free(redirect_state);
 
     return return_value;
 }
