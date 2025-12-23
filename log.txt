@@ -1,9 +1,0 @@
-$4 = 0x42a7a0 "client_id=714494aac8684bcf9b7b552d797fc51b&response_type=code&redirect_uri=https%3A%2F%2Flocalhost%3A8080&scope="
-$5 = 112
-#0  append_query_params (base_url=0x409128 "https://accounts.spotify.com/authorize", base_url_len=40, parameters=0x7fffffffd490, parameter_len=4, endpoint_out=0x7fffffffd488) at src/network.c:145
-#1  0x0000000000402099 in create_authorization_endpoint (endpoint_out=0x7fffffffdcc0) at src/spotify_api.c:90
-#2  0x00000000004020f9 in login () at src/spotify_api.c:110
-#3  0x0000000000402276 in main (argc=2, argv=0x7fffffffde28) at src/spotify_tracker.c:25
-Warning: 'set logging off', an alias for the command 'set logging enabled', is deprecated.
-Use 'set logging enabled off'.
-
