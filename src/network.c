@@ -11,6 +11,8 @@
 #include "network.h"
 
 #define CREDENTIALS_MAX 1024
+// 22 to make space for "Authorization: Basic  "
+#define BASIC_HEADER_PREFIX_LEN 22
 
 typedef struct {
     char *key;
@@ -105,7 +107,7 @@ void write_encoded_kvps_to_body(char *body, encoded_kvp *encoded_kvps, int kvp_l
     body[position] = '\0';
 }
 
-int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **body_out) {
+int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
     encoded_kvp *encoded_kvps = NULL;
     size_t encoded_size;
 
@@ -113,7 +115,8 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
         return STATUS_ERROR;
     }
 
-    char *body = malloc(encoded_size + 1);
+    size_t real_size = encoded_size + 1;
+    char *body = malloc(real_size);
 
     if (!body) {
         perror("malloc");
@@ -124,9 +127,38 @@ int create_form_url_encoded_body(form_key_value_pair *kvps, int kvp_len, char **
     write_encoded_kvps_to_body(body, encoded_kvps, kvp_len);
 
     *body_out = body;
+    *size_out = real_size;
     cleanup_encoded_kvps(encoded_kvps, kvp_len);
 
     return STATUS_SUCCESS;
+}
+
+int append_query_params(char *base_url, int base_url_len, form_key_value_pair *parameters, int parameter_len,
+                        char **endpoint_out) {
+    size_t encoded_params_len;
+    char *encoded_parameters = NULL;
+
+    int return_value =
+        create_form_url_encoded_kvps(parameters, parameter_len, &encoded_parameters, &encoded_params_len);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    // Since both of these lens include null terminator we have space for adding '?' before query params
+    int endpoint_len = base_url_len + encoded_params_len;
+
+    char *endpoint = malloc(endpoint_len);
+    if (!endpoint) {
+        goto cleanup;
+    }
+
+    snprintf(endpoint, endpoint_len, "%s?%s", base_url, encoded_parameters);
+    *endpoint_out = endpoint;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(encoded_parameters);
+    return return_value;
 }
 
 int append_basic_header(char *username, char *password, struct curl_slist **header_out) {
@@ -145,8 +177,8 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
         return STATUS_ERROR;
     }
 
-    // 22 to make space for "Authorization: Basic  "
-    int header_len = base64_size + 22;
+    int header_len = base64_size + BASIC_HEADER_PREFIX_LEN;
+    // TODO: Use malloc instead of VLA here!
     char basic_header[header_len];
     if (snprintf(basic_header, sizeof(basic_header), "Authorization: Basic %s", base64_credentials) >= header_len) {
         fprintf(stderr, "Basic header result is too long\n");
