@@ -208,24 +208,24 @@ cleanup:
     return return_value;
 }
 
-int append_content_type_header(char *content_type, struct curl_slist **header_out) {
+int append_header(char *prefix, char *value, struct curl_slist **header_out) {
     int return_value = STATUS_ERROR;
-    int content_type_prefix_len = strlen("Content-Type: ");
-    int content_type_value_len = strlen(content_type);
-    int total_size = content_type_prefix_len + content_type_value_len + 1;
+    int prefix_len = strlen(prefix);
+    int value_len = strlen(value);
+    int total_size = prefix_len + value_len + 1;
 
-    char *content_type_header = malloc(total_size);
-    if (!content_type_header) {
+    char *header_value = malloc(total_size);
+    if (!header_value) {
         perror("malloc");
         goto cleanup;
     }
 
-    if (snprintf(content_type_header, total_size, "Content-Type: %s", content_type) >= total_size) {
-        fprintf(stderr, "Basic header result is too long\n");
+    if (snprintf(header_value, total_size, "%s%s", prefix, value) >= total_size) {
+        fprintf(stderr, "Header result was too long\n");
         goto cleanup;
     }
 
-    struct curl_slist *header = curl_slist_append(*header_out, content_type_header);
+    struct curl_slist *header = curl_slist_append(*header_out, header_value);
     if (!header) {
         fprintf(stderr, "Failed to append header\n");
         return STATUS_ERROR;
@@ -235,7 +235,7 @@ int append_content_type_header(char *content_type, struct curl_slist **header_ou
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    free(content_type_header);
+    free(header_value);
     return return_value;
 }
 
@@ -291,6 +291,7 @@ int http_request(char *url, struct curl_slist *headers, const char *body, char *
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(body));
     } else {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
     }
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
 
@@ -304,7 +305,7 @@ int http_request(char *url, struct curl_slist *headers, const char *body, char *
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
     if (result != CURLE_OK) {
-        fprintf(stderr, "POST failed: %s\n", curl_easy_strerror(result));
+        fprintf(stderr, "%s failed: %s\n", method, curl_easy_strerror(result));
     }
 
     curl_easy_cleanup(curl);

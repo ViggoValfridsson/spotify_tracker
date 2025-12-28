@@ -24,8 +24,8 @@
 
 #define REDIRECT_URI "https://httpbin.org/anything"
 
-#define TOP_ARTISTS_URI "https://api.spotify.com/v1/me/top/artists"
-#define TOP_TRACKS_URI "https://api.spotify.com/v1/me/top/tracks"
+#define TOP_ARTISTS_URI "https://api.spotify.com/v1/me/top/artists?time_range=short_term&limit=5&offset=0"
+#define TOP_TRACKS_URI "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5&offset=0"
 
 int get_access_token_header(struct curl_slist **header_out) {
     client_credentials *credentials = NULL;
@@ -43,7 +43,7 @@ int get_access_token_header(struct curl_slist **header_out) {
         goto cleanup;
     }
 
-    return_value = append_content_type_header("application/x-www-form-urlencoded", &header);
+    return_value = append_header("Content-Type: ", "application/x-www-form-urlencoded", &header);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create content-type header\n");
         free(header);
@@ -265,19 +265,43 @@ cleanup:
     return return_value;
 }
 
-int get_top_artists(access_token *access_token, artist **artists_out) {
-    char* response = NULL;
+int spotify_get(char *url, access_token *access_token, char **response_out) {
+    struct curl_slist *header = NULL;
 
-    int return_value = http_request(TOP_ARTISTS_URI ,NULL,NULL, "GET",&response);
+    int return_value = append_header("Authorization: Bearer ", access_token->access_token, &header);
     if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to fetch new access token using refresh token\n");
+        fprintf(stderr, "Failed to create bearer token header\n");
         goto cleanup;
     }
 
-    
+    char *response = NULL;
+    return_value = http_request(url, header, NULL, "GET", &response);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Request to spotify API failed\n");
+        goto cleanup;
+    }
 
-cleanup:    
+    *response_out = response;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    curl_slist_free_all(header);
+    return return_value;
+}
+
+int get_top_artists(access_token *access_token, artist **artists_out) {
+    char *response = NULL;
+
+    int return_value = spotify_get(TOP_ARTISTS_URI, access_token, &response);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    printf("%s\n", response);
+
+cleanup:
     free(response);
+    return return_value;
 }
 
 int get_top_songs(access_token *access_token, artist **songs_out) {
