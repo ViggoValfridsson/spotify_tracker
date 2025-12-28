@@ -11,6 +11,9 @@
 #include "network.h"
 #include "spotify_api.h"
 
+#define CREDENTIALS_FILE_PATH "~/.config/spotify-tracker/credentials"
+#define REFRESH_TOKEN_FILE_PATH "~/.config/spotify-tracker/refresh_token"
+
 #define TOKEN_ENDPOINT "https://accounts.spotify.com/api/token"
 #define AUTHORIZE_ENDPOINT_BASE "https://accounts.spotify.com/authorize"
 // Includes null terminator
@@ -152,13 +155,15 @@ int login() {
         goto cleanup;
     }
 
-    if (get_token(redirect_code, &token) != STATUS_SUCCESS) {
+    return_value = get_token(redirect_code, &token);
+    if (return_value != STATUS_SUCCESS) {
         goto cleanup;
     }
 
-    // TODO:
-    // 1. Save refresh token. In file?
-    // 2. Use refresh token to get access token when making real requests
+    return_value = write_file_overwrite(REFRESH_TOKEN_FILE_PATH, token->refresh_token);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
 
     return_value = STATUS_SUCCESS;
 
@@ -167,4 +172,36 @@ cleanup:
     free(redirect_code);
 
     return return_value;
+}
+
+int fetch_access_token() {
+    char *refresh_token = NULL;
+    int return_value = STATUS_ERROR;
+
+    return_value = read_file_content(REFRESH_TOKEN_FILE_PATH, &refresh_token);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    
+
+cleanup:
+    free(refresh_token);
+
+    return return_value;
+}
+
+int get_top_artists(artist **artists_out) {
+
+    // TODO:
+    // check if refresh token file exists
+    // get access token
+    // fetch artists
+    // parse artist json
+    // return array of artists
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+int get_top_songs(artist **songs_out) {
+    return STATUS_NOT_IMPLEMENTED;
 }
