@@ -208,24 +208,24 @@ cleanup:
     return return_value;
 }
 
-int append_content_type_header(char *content_type, struct curl_slist **header_out) {
+int append_header(char *prefix, char *value, struct curl_slist **header_out) {
     int return_value = STATUS_ERROR;
-    int content_type_prefix_len = strlen("Content-Type: ");
-    int content_type_value_len = strlen(content_type);
-    int total_size = content_type_prefix_len + content_type_value_len + 1;
+    int prefix_len = strlen(prefix);
+    int value_len = strlen(value);
+    int total_size = prefix_len + value_len + 1;
 
-    char *content_type_header = malloc(total_size);
-    if (!content_type_header) {
+    char *header_value = malloc(total_size);
+    if (!header_value) {
         perror("malloc");
         goto cleanup;
     }
 
-    if (snprintf(content_type_header, total_size, "Content-Type: %s", content_type) >= total_size) {
-        fprintf(stderr, "Basic header result is too long\n");
+    if (snprintf(header_value, total_size, "%s%s", prefix, value) >= total_size) {
+        fprintf(stderr, "Header result was too long\n");
         goto cleanup;
     }
 
-    struct curl_slist *header = curl_slist_append(*header_out, content_type_header);
+    struct curl_slist *header = curl_slist_append(*header_out, header_value);
     if (!header) {
         fprintf(stderr, "Failed to append header\n");
         return STATUS_ERROR;
@@ -235,7 +235,7 @@ int append_content_type_header(char *content_type, struct curl_slist **header_ou
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    free(content_type_header);
+    free(header_value);
     return return_value;
 }
 
@@ -264,13 +264,13 @@ int read_response_callback(void *contents, size_t size, size_t nmemb, void *user
     }
 
     memcpy(&(chunks->data[chunks->size]), contents, real_size);
-    chunks->size = real_size;
+    chunks->size += real_size;
     chunks->data[chunks->size] = '\0';
 
     return real_size;
 }
 
-int post(char *url, struct curl_slist *headers, const char *body, char **response_out) {
+int http_request(char *url, struct curl_slist *headers, const char *body, char *method, char **response_out) {
     CURL *curl = curl_easy_init();
     if (!curl) {
         fprintf(stderr, "Failed to initialize curl\n");
@@ -290,12 +290,12 @@ int post(char *url, struct curl_slist *headers, const char *body, char **respons
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(body));
     } else {
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
     }
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
 
-    response_chunks response_body = {.size = 0};
+    response_chunks response_body = {.size = 0, .data = NULL};
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, read_response_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response_body);
 
@@ -305,7 +305,7 @@ int post(char *url, struct curl_slist *headers, const char *body, char **respons
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
     if (result != CURLE_OK) {
-        fprintf(stderr, "POST failed: %s\n", curl_easy_strerror(result));
+        fprintf(stderr, "%s failed: %s\n", method, curl_easy_strerror(result));
     }
 
     curl_easy_cleanup(curl);
@@ -316,7 +316,7 @@ int post(char *url, struct curl_slist *headers, const char *body, char **respons
     return result == CURLE_OK ? get_status(http_code) : STATUS_NETWORK_ERROR;
 }
 
-int parse_token_response(char *input, token_response **token_out) {
+int parse_token_response(char *input, access_token **token_out) {
     cJSON *json = NULL;
     int return_value = STATUS_ERROR;
 
@@ -331,22 +331,24 @@ int parse_token_response(char *input, token_response **token_out) {
     cJSON *token_type = cJSON_GetObjectItemCaseSensitive(json, "token_type");
     cJSON *expires_in = cJSON_GetObjectItemCaseSensitive(json, "expires_in");
 
-    if (!cJSON_IsString(access_token) || !cJSON_IsString(refresh_token) || !cJSON_IsString(token_type) ||
-        !cJSON_IsNumber(expires_in)) {
+    if (!cJSON_IsString(access_token) || !cJSON_IsString(token_type) || !cJSON_IsNumber(expires_in)) {
         fprintf(stderr, "Response was not in valid JSON structure\n");
         goto cleanup;
     }
 
-    token_response *token = malloc(sizeof(token_response));
+    struct access_token *token = calloc(1, sizeof(struct access_token));
     if (token == NULL) {
-        perror("malloc");
+        perror("calloc");
         goto cleanup;
     }
 
     snprintf(token->access_token, sizeof(token->access_token), "%s", access_token->valuestring);
-    snprintf(token->refresh_token, sizeof(token->refresh_token), "%s", refresh_token->valuestring);
     snprintf(token->token_type, sizeof(token->token_type), "%s", token_type->valuestring);
     token->expires_in = expires_in->valueint;
+    // Refresh token is not always included, it being missing is not an error
+    if (cJSON_IsString(refresh_token)) {
+        snprintf(token->refresh_token, sizeof(token->refresh_token), "%s", refresh_token->valuestring);
+    }
 
     *token_out = token;
     return_value = STATUS_SUCCESS;
