@@ -60,7 +60,7 @@ int expand_file_name(char *file_name, char **resolved_name_out) {
     return STATUS_SUCCESS;
 }
 
-int open_file(char *file_name, FILE **file_out) {
+int open_file(char *file_name, char *open_mode, FILE **file_out) {
     errno = 0;
 
     char *resolved_name;
@@ -68,7 +68,7 @@ int open_file(char *file_name, FILE **file_out) {
         return STATUS_ERROR;
     }
 
-    FILE *file = fopen(resolved_name, "r");
+    FILE *file = fopen(resolved_name, open_mode);
 
     if (!file) {
         free(resolved_name);
@@ -124,9 +124,9 @@ int read_file(FILE *file, long size, char **data_out) {
     return STATUS_SUCCESS;
 }
 
-int read_file_content(char *file_path, char **file_content) {
+int read_file_content(char *file_path, char **file_content_out) {
     FILE *file = NULL;
-    if (open_file(file_path, &file) != STATUS_SUCCESS) {
+    if (open_file(file_path, "r", &file) != STATUS_SUCCESS) {
         return STATUS_FILE_ERROR;
     }
 
@@ -194,5 +194,21 @@ int read_credentials_from_file(char *credentials_file_path, client_credentials *
     free(file_content);
 
     *credentials_out = credentials;
+    return STATUS_SUCCESS;
+}
+
+int write_file_overwrite(char *file_path, char *file_content) {
+    FILE *file = NULL;
+
+    if (open_file(file_path, "w", &file) != STATUS_SUCCESS) {
+        return STATUS_FILE_ERROR;
+    }
+
+    if (fprintf(file, "%s", file_content) < 0) {
+        fclose(file);
+        return STATUS_ERROR;
+    }
+
+    fclose(file);
     return STATUS_SUCCESS;
 }
