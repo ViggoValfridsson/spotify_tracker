@@ -140,7 +140,7 @@ int read_file_content(char *file_path, char **file_content_out) {
         return STATUS_FILE_ERROR;
     }
 
-    *file_content = data;
+    *file_content_out = data;
     return STATUS_SUCCESS;
 }
 
@@ -201,10 +201,12 @@ int write_file_overwrite(char *file_path, char *file_content) {
     FILE *file = NULL;
 
     if (open_file(file_path, "w", &file) != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to open refresh token file");
         return STATUS_FILE_ERROR;
     }
 
     if (fprintf(file, "%s", file_content) < 0) {
+        fprintf(stderr, "Failed to write to refresh token file");
         fclose(file);
         return STATUS_ERROR;
     }
