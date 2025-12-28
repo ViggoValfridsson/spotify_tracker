@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "cJSON.h"
 #include "common.h"
 #include "file.h"
 #include "io.h"
@@ -289,7 +290,126 @@ cleanup:
     return return_value;
 }
 
-int get_top_artists(access_token *access_token, artist **artists_out) {
+// TODO: Rewrite all this JSON parsing to be MUCH cleaner and less repetetive
+int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
+    cJSON *json = NULL;
+    int return_value = STATUS_ERROR;
+
+    json = cJSON_Parse(input);
+    if (!json) {
+        fprintf(stderr, "Response did not contain valid JSON\n");
+        goto cleanup;
+    }
+
+    cJSON *items = cJSON_GetObjectItem(json, "items");
+    if (!items || !cJSON_IsArray(items)) {
+        fprintf(stderr, "Expected 'items' array\n");
+        goto cleanup;
+    }
+
+    int count = cJSON_GetArraySize(items);
+    artist *artists = malloc(count * sizeof(artist));
+    if (artists == NULL) {
+        perror("malloc");
+        goto cleanup;
+    }
+    cJSON *item = NULL;
+    int i = 0;
+    cJSON_ArrayForEach(item, items) {
+        cJSON *name = cJSON_GetObjectItem(item, "name");
+        if (!cJSON_IsString(name)) {
+            free(artists);
+            goto cleanup;
+        }
+        snprintf(artists[i].name, sizeof(artists[i].name), "%s", name->valuestring);
+        i++;
+    }
+
+    *artists_out = artists;
+    *artist_len_out = count;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    cJSON_Delete(json);
+
+    return return_value;
+}
+
+int parse_song(cJSON *item, song *song) {
+    cJSON *name = cJSON_GetObjectItem(item, "name");
+    cJSON *artists = cJSON_GetObjectItem(item, "artists");
+
+    if (!cJSON_IsString(name) || !cJSON_IsArray(artists)) {
+        return STATUS_ERROR;
+    }
+
+    snprintf(song->name, sizeof(song->name), "%s", name->valuestring);
+
+    int artist_len = cJSON_GetArraySize(artists);
+    cJSON *artist;
+    int i = 0;
+    size_t pos = 0;
+
+    cJSON_ArrayForEach(artist, artists) {
+        cJSON *artist_name = cJSON_GetObjectItem(artist, "name");
+
+        if (!cJSON_IsString(artist_name)) {
+            return STATUS_ERROR;
+        }
+
+        pos += snprintf(song->artist + pos, sizeof(song->artist) - pos, "%s%s", artist_name->valuestring,
+                        (i < artist_len - 1) ? ", " : "");
+
+        i++;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+int parse_songs(char *input, song **songs_out, int *songs_len_out) {
+    cJSON *json = NULL;
+    int return_value = STATUS_ERROR;
+
+    json = cJSON_Parse(input);
+    if (!json) {
+        fprintf(stderr, "Response did not contain valid JSON\n");
+        goto cleanup;
+    }
+
+    cJSON *items = cJSON_GetObjectItem(json, "items");
+    if (!items || !cJSON_IsArray(items)) {
+        fprintf(stderr, "Expected 'items' array\n");
+        goto cleanup;
+    }
+
+    int count = cJSON_GetArraySize(items);
+    song *songs = malloc(count * sizeof(song));
+    if (songs == NULL) {
+        perror("malloc");
+        goto cleanup;
+    }
+    cJSON *item = NULL;
+    int i = 0;
+
+    cJSON_ArrayForEach(item, items) {
+        if (parse_song(item, &songs[i]) != STATUS_SUCCESS) {
+            free(songs);
+            goto cleanup;
+        }
+
+        i++;
+    }
+
+    *songs_out = songs;
+    *songs_len_out = count;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    cJSON_Delete(json);
+    return return_value;
+}
+
+int get_top_artists(access_token *access_token, artist **artists_out, int *artists_len_out) {
     char *response = NULL;
 
     int return_value = spotify_get(TOP_ARTISTS_URI, access_token, &response);
@@ -297,13 +417,46 @@ int get_top_artists(access_token *access_token, artist **artists_out) {
         goto cleanup;
     }
 
-    printf("%s\n", response);
+    artist *artists = NULL;
+    int artist_len;
+
+    return_value = parse_artists(response, &artists, &artist_len);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to parse response from spotify API\n");
+        goto cleanup;
+    }
+
+    *artists_out = artists;
+    *artists_len_out = artist_len;
+    return_value = STATUS_SUCCESS;
 
 cleanup:
     free(response);
     return return_value;
 }
 
-int get_top_songs(access_token *access_token, artist **songs_out) {
-    return STATUS_NOT_IMPLEMENTED;
+int get_top_songs(access_token *access_token, song **songs_out, int *songs_len_out) {
+    char *response = NULL;
+
+    int return_value = spotify_get(TOP_TRACKS_URI, access_token, &response);
+    if (return_value != STATUS_SUCCESS) {
+        goto cleanup;
+    }
+
+    song *songs = NULL;
+    int songs_len;
+
+    return_value = parse_songs(response, &songs, &songs_len);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to parse response from spotify API\n");
+        goto cleanup;
+    }
+
+    *songs_out = songs;
+    *songs_len_out = songs_len;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(response);
+    return return_value;
 }

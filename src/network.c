@@ -264,7 +264,7 @@ int read_response_callback(void *contents, size_t size, size_t nmemb, void *user
     }
 
     memcpy(&(chunks->data[chunks->size]), contents, real_size);
-    chunks->size = real_size;
+    chunks->size += real_size;
     chunks->data[chunks->size] = '\0';
 
     return real_size;

@@ -14,16 +14,33 @@ void print_usage(char *arg) {
 int post_artists_to_gist() {
     access_token *token = NULL;
     artist *artists = NULL;
+    song *songs = NULL;
 
     int return_value = refresh_access_token(&token);
     if (return_value != STATUS_SUCCESS) {
         goto cleanup;
     }
 
-    return_value = get_top_artists(token, &artists);
+    int artists_len;
+    return_value = get_top_artists(token, &artists, &artists_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to fetch top artists\n");
         goto cleanup;
+    }
+
+    for (int i = 0; i < artists_len; i++) {
+        printf("%s\n", artists[i].name);
+    }
+
+    int songs_len;
+    return_value = get_top_songs(token, &songs, &songs_len);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to fetch top songs\n");
+        goto cleanup;
+    }
+
+    for (int i = 0; i < songs_len; i++) {
+        printf("%s - %s\n", songs[i].name, songs[i].artist);
     }
 
     return_value = STATUS_SUCCESS;
@@ -31,6 +48,7 @@ int post_artists_to_gist() {
 cleanup:
     free(token);
     free(artists);
+    free(songs);
 
     return return_value;
 }
