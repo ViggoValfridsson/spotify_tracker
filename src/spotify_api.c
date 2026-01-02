@@ -290,8 +290,7 @@ cleanup:
     return return_value;
 }
 
-// TODO: Rewrite all this JSON parsing to be MUCH cleaner and less repetetive
-int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
+int parse_items_array(char *input, cJSON **items_out) {
     cJSON *json = NULL;
     int return_value = STATUS_ERROR;
 
@@ -301,27 +300,54 @@ int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
         goto cleanup;
     }
 
-    cJSON *items = cJSON_GetObjectItem(json, "items");
+    cJSON *items = cJSON_DetachItemFromObject(json, "items");
     if (!items || !cJSON_IsArray(items)) {
         fprintf(stderr, "Expected 'items' array\n");
         goto cleanup;
     }
 
+    *items_out = items;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    cJSON_Delete(json);
+    return return_value;
+}
+
+int parse_artist(cJSON *item, artist *artist) {
+    cJSON *name = cJSON_GetObjectItem(item, "name");
+    if (!cJSON_IsString(name)) {
+        return STATUS_ERROR;
+    }
+
+    snprintf(artist->name, sizeof(artist->name), "%s", name->valuestring);
+    return STATUS_SUCCESS;
+}
+
+int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
+    cJSON *items = NULL;
+
+    int return_value = parse_items_array(input, &items);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Input did not contain items array\n");
+        goto cleanup;
+    }
+
     int count = cJSON_GetArraySize(items);
+
     artist *artists = malloc(count * sizeof(artist));
     if (artists == NULL) {
         perror("malloc");
         goto cleanup;
     }
+
     cJSON *item = NULL;
     int i = 0;
     cJSON_ArrayForEach(item, items) {
-        cJSON *name = cJSON_GetObjectItem(item, "name");
-        if (!cJSON_IsString(name)) {
+        if (parse_artist(item, &artists[i]) != STATUS_SUCCESS) {
             free(artists);
             goto cleanup;
         }
-        snprintf(artists[i].name, sizeof(artists[i].name), "%s", name->valuestring);
         i++;
     }
 
@@ -330,8 +356,7 @@ int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    cJSON_Delete(json);
-
+    cJSON_Delete(items);
     return return_value;
 }
 
@@ -367,30 +392,24 @@ int parse_song(cJSON *item, song *song) {
 }
 
 int parse_songs(char *input, song **songs_out, int *songs_len_out) {
-    cJSON *json = NULL;
-    int return_value = STATUS_ERROR;
+    cJSON *items = NULL;
 
-    json = cJSON_Parse(input);
-    if (!json) {
-        fprintf(stderr, "Response did not contain valid JSON\n");
-        goto cleanup;
-    }
-
-    cJSON *items = cJSON_GetObjectItem(json, "items");
-    if (!items || !cJSON_IsArray(items)) {
-        fprintf(stderr, "Expected 'items' array\n");
+    int return_value = parse_items_array(input, &items);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Input did not contain items array\n");
         goto cleanup;
     }
 
     int count = cJSON_GetArraySize(items);
+
     song *songs = malloc(count * sizeof(song));
     if (songs == NULL) {
         perror("malloc");
         goto cleanup;
     }
+
     cJSON *item = NULL;
     int i = 0;
-
     cJSON_ArrayForEach(item, items) {
         if (parse_song(item, &songs[i]) != STATUS_SUCCESS) {
             free(songs);
@@ -405,7 +424,7 @@ int parse_songs(char *input, song **songs_out, int *songs_len_out) {
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    cJSON_Delete(json);
+    cJSON_Delete(items);
     return return_value;
 }
 
