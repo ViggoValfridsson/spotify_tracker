@@ -133,8 +133,7 @@ int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **
     return STATUS_SUCCESS;
 }
 
-int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len,
-                        char **endpoint_out) {
+int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len, char **endpoint_out) {
     size_t encoded_params_len;
     char *encoded_parameters = NULL;
 
@@ -244,7 +243,10 @@ int get_status(int http_code) {
         return STATUS_SUCCESS;
     } else if (http_code == 401 || http_code == 403) {
         return STATUS_AUTHENTICATION_ERROR;
-    } else if (http_code >= 300 && http_code <= 400) {
+    } else if (http_code == 404) {
+        return STATUS_NETWORK_NOT_FOUND_ERROR;
+    }
+    else if (http_code >= 300 && http_code <= 400) {
         return STATUS_NETWORK_CLIENT_ERROR;
     } else if (http_code >= 400 && http_code <= 500) {
         return STATUS_NETWORK_SERVER_ERROR;
