@@ -133,7 +133,7 @@ int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **
     return STATUS_SUCCESS;
 }
 
-int append_query_params(char *base_url, int base_url_len, form_key_value_pair *parameters, int parameter_len,
+int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len,
                         char **endpoint_out) {
     size_t encoded_params_len;
     char *encoded_parameters = NULL;
@@ -144,8 +144,8 @@ int append_query_params(char *base_url, int base_url_len, form_key_value_pair *p
         goto cleanup;
     }
 
-    // Since both of these lens include null terminator we have space for adding '?' before query params
-    int endpoint_len = base_url_len + encoded_params_len;
+    // + 1 to account for ? separator before appending query params
+    int endpoint_len = strlen(base_url) + 1 + encoded_params_len;
 
     char *endpoint = malloc(endpoint_len);
     if (!endpoint) {

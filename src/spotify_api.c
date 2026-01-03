@@ -12,12 +12,10 @@
 #include "network.h"
 #include "spotify_api.h"
 
-#define CREDENTIALS_FILE_PATH "~/.config/spotify-tracker/credentials"
-#define REFRESH_TOKEN_FILE_PATH "~/.config/spotify-tracker/refresh_token"
+#define CREDENTIALS_FILE_PATH "~/.config/spotify-tracker/spotify-credentials"
+#define REFRESH_TOKEN_FILE_PATH "~/.config/spotify-tracker/spotify-refresh-token"
 
 #define TOKEN_ENDPOINT "https://accounts.spotify.com/api/token"
-// Includes null terminator
-#define AUTHORIZE_ENDPOINT_BASE_LEN 40
 #define TOKEN_ENDPOINT_FORM_BODY_LEN 3
 
 #define AUTHORIZE_ENDPOINT_BASE "https://accounts.spotify.com/authorize"
@@ -28,11 +26,64 @@
 #define TOP_ARTISTS_URI "https://api.spotify.com/v1/me/top/artists?time_range=short_term&limit=5&offset=0"
 #define TOP_TRACKS_URI "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5&offset=0"
 
+int parse_credentials_json(char *file_content, client_credentials **credentials_out) {
+    cJSON *json = cJSON_Parse(file_content);
+
+    if (!json) {
+        fprintf(stderr, "File did not contain valid JSON\n");
+        return STATUS_FILE_ERROR;
+    }
+
+    cJSON *client_id = cJSON_GetObjectItemCaseSensitive(json, "clientId");
+    cJSON *client_secret = cJSON_GetObjectItemCaseSensitive(json, "clientSecret");
+
+    if (!cJSON_IsString(client_id) || !cJSON_IsString(client_secret)) {
+        cJSON_Delete(json);
+        return STATUS_FILE_ERROR;
+    }
+
+    client_credentials *credentials = malloc(sizeof(client_credentials));
+
+    if (credentials == NULL) {
+        cJSON_Delete(json);
+        perror("malloc");
+        return STATUS_ERROR;
+    }
+
+    snprintf(credentials->client_id, sizeof(credentials->client_id), "%s", client_id->valuestring);
+    snprintf(credentials->client_secret, sizeof(credentials->client_secret), "%s", client_secret->valuestring);
+
+    cJSON_Delete(json);
+
+    *credentials_out = credentials;
+    return STATUS_SUCCESS;
+}
+
+int read_spotify_credentials_file(char *credentials_file_path, client_credentials **credentials_out) {
+    char *file_content;
+
+    if (read_file_content(credentials_file_path, &file_content) != STATUS_SUCCESS) {
+        return STATUS_FILE_ERROR;
+    }
+
+    client_credentials *credentials;
+
+    if (parse_credentials_json(file_content, &credentials) != STATUS_SUCCESS) {
+        free(file_content);
+        return STATUS_FILE_ERROR;
+    }
+
+    free(file_content);
+
+    *credentials_out = credentials;
+    return STATUS_SUCCESS;
+}
+
 int get_access_token_header(struct curl_slist **header_out) {
     client_credentials *credentials = NULL;
     struct curl_slist *header = NULL;
 
-    int return_value = read_credentials_from_file(CREDENTIALS_FILE_PATH, &credentials);
+    int return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read credentials\n");
         goto cleanup;
@@ -151,7 +202,7 @@ cleanup:
 int create_authorization_endpoint(char **endpoint_out) {
     client_credentials *credentials = NULL;
 
-    int return_value = read_credentials_from_file(CREDENTIALS_FILE_PATH, &credentials);
+    int return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read credentials\n");
         goto cleanup;
@@ -166,8 +217,7 @@ int create_authorization_endpoint(char **endpoint_out) {
     snprintf(query_parameters[0].value, sizeof(query_parameters[0].value), "%s", credentials->client_id);
 
     char *endpoint;
-    return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, AUTHORIZE_ENDPOINT_BASE_LEN, query_parameters,
-                                       AUTHORIZE_PARAMETERS_LEN, &endpoint);
+    return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, query_parameters, AUTHORIZE_PARAMETERS_LEN, &endpoint);
     if (return_value != STATUS_SUCCESS) {
         goto cleanup;
     }

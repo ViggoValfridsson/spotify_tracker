@@ -23,8 +23,7 @@ typedef struct {
 int append_header(char *prefix, char *value, struct curl_slist **header_out);
 int append_basic_header(char *username, char *password, struct curl_slist **header_out);
 int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out);
-int append_query_params(char *base_url, int base_url_len, form_key_value_pair *parameters, int parameter_len,
-                        char **endpoint_out);
+int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len, char **endpoint_out);
 int http_request(char *url, struct curl_slist *headers, const char *body, char *method, char **response_out);
 int parse_token_response(char *input, access_token **token_out);
 
