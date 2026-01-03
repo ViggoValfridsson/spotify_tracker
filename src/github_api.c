@@ -1,18 +1,23 @@
 #include "github_api.h"
 #include "cJSON.h"
 #include "common.h"
+#include "encoding.h"
 #include "file.h"
 #include "network.h"
 #include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CONFIG_FILE_PATH "~/.config/spotify-tracker/github-config"
 #define GITHUB_API_BASE_ADDRESS "https://api.github.com"
 
 typedef struct {
-    char gist_id[256];
+    char repo_owner[256];
+    char repo_name[256];
     char file_name[256];
+    char committer[256];
+    char email[256];
     char pat[256];
 } github_config;
 
@@ -24,11 +29,15 @@ int parse_config_json(char *file_content, github_config **config_out) {
         return STATUS_FILE_ERROR;
     }
 
-    cJSON *gist_id = cJSON_GetObjectItemCaseSensitive(json, "gistId");
+    cJSON *repo_owner = cJSON_GetObjectItemCaseSensitive(json, "repoOwner");
+    cJSON *repo_name = cJSON_GetObjectItemCaseSensitive(json, "repoName");
     cJSON *file_name = cJSON_GetObjectItemCaseSensitive(json, "fileName");
+    cJSON *committer = cJSON_GetObjectItemCaseSensitive(json, "committer");
+    cJSON *email = cJSON_GetObjectItemCaseSensitive(json, "email");
     cJSON *pat = cJSON_GetObjectItemCaseSensitive(json, "pat");
 
-    if (!cJSON_IsString(gist_id) || !cJSON_IsString(file_name) || !cJSON_IsString(pat)) {
+    if (!cJSON_IsString(repo_owner) || !cJSON_IsString(repo_name) || !cJSON_IsString(file_name) ||
+        !cJSON_IsString(committer) || !cJSON_IsString(email) || !cJSON_IsString(pat)) {
         cJSON_Delete(json);
         return STATUS_FILE_ERROR;
     }
@@ -41,8 +50,11 @@ int parse_config_json(char *file_content, github_config **config_out) {
         return STATUS_ERROR;
     }
 
-    snprintf(config->gist_id, sizeof(config->gist_id), "%s", gist_id->valuestring);
+    snprintf(config->repo_owner, sizeof(config->repo_owner), "%s", repo_owner->valuestring);
+    snprintf(config->repo_name, sizeof(config->repo_name), "%s", repo_name->valuestring);
     snprintf(config->file_name, sizeof(config->file_name), "%s", file_name->valuestring);
+    snprintf(config->committer, sizeof(config->committer), "%s", committer->valuestring);
+    snprintf(config->email, sizeof(config->email), "%s", email->valuestring);
     snprintf(config->pat, sizeof(config->pat), "%s", pat->valuestring);
 
     cJSON_Delete(json);
@@ -71,50 +83,63 @@ int read_github_config_file(char *file_path, github_config **config_out) {
     return STATUS_SUCCESS;
 }
 
-int create_update_gist_body(char *description, char *file_name, char *gist_content, char **json_out) {
+int create_update_file_body(char *message, char *committer_name, char *committer_email, char *content, char **json_out) {
+    char *base64_content = NULL;
+    int return_value = STATUS_ERROR;
+
     cJSON *root = cJSON_CreateObject();
     if (!root) {
         return STATUS_ERROR;
     }
-    if (!cJSON_AddStringToObject(root, "description", description)) {
-        cJSON_Delete(root);
-        return STATUS_ERROR;
+
+    if (!cJSON_AddStringToObject(root, "message", message)) {
+        goto cleanup;
     }
-    cJSON *files = cJSON_CreateObject();
-    if (!files) {
-        cJSON_Delete(root);
-        return STATUS_ERROR;
+
+    cJSON *committer = cJSON_CreateObject();
+    if (!committer) {
+        goto cleanup;
     }
-    cJSON *file = cJSON_CreateObject();
-    if (!file) {
-        cJSON_Delete(root);
-        return STATUS_ERROR;
+
+    if (!cJSON_AddStringToObject(committer, "name", committer_name)) {
+        goto cleanup;
     }
-    if (!cJSON_AddStringToObject(file, "content", gist_content)) {
-        cJSON_Delete(root);
-        return STATUS_ERROR;
+
+    if (!cJSON_AddStringToObject(committer, "email", committer_email)) {
+        goto cleanup;
     }
-    if (!cJSON_AddItemToObject(files, file_name, file)) {
-        cJSON_Delete(root);
-        return STATUS_ERROR;
+
+    if (!cJSON_AddItemToObject(root, "committer", committer)) {
+        goto cleanup;
     }
-    if (!cJSON_AddItemToObject(root, "files", files)) {
-        cJSON_Delete(root);
-        return STATUS_ERROR;
+
+    int content_len = strlen(content + 1);
+    int base64_size = base64_encode(content, content_len, &base64_content);
+    if (base64_size == STATUS_ERROR) {
+        goto cleanup;
+    }
+
+    if (!cJSON_AddStringToObject(root, "content", base64_content)) {
+        goto cleanup;
     }
 
     char *json_string = cJSON_Print(root);
 
-    cJSON_Delete(root);
     if (!json_string) {
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     *json_out = json_string;
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(base64_content);
+    cJSON_Delete(root);
+
+    return return_value;
 }
 
-int update_gist_content(char *content) {
+int update_repo_file_content(char *content) {
     github_config *config = NULL;
     struct curl_slist *headers = NULL;
     char *update_endpoint = NULL;
@@ -128,14 +153,16 @@ int update_gist_content(char *content) {
         goto cleanup;
     }
 
-    if (asprintf(&update_endpoint, "%s/gists/%s", GITHUB_API_BASE_ADDRESS, config->gist_id) == -1) {
+    if (asprintf(&update_endpoint, "%s/repos/%s/%s/contents/%s", GITHUB_API_BASE_ADDRESS, config->repo_owner, config->repo_name,
+                 config->file_name) == -1) {
         perror("asprintf");
         goto cleanup;
     }
 
-    return_value = create_update_gist_body("Spotify Stats", config->file_name, content, &update_body);
+    char *commit_message = "Performed Spotify Tracker update";
+    return_value = create_update_file_body(commit_message, config->committer, config->email, content, &update_body);
     if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to construct gist update json\n");
+        fprintf(stderr, "Failed to construct file update json\n");
         goto cleanup;
     }
 
@@ -157,7 +184,8 @@ int update_gist_content(char *content) {
         goto cleanup;
     }
 
-    return_value = http_request(update_endpoint, headers, update_body, "PATCH", &response);
+    return_value = http_request(update_endpoint, headers, update_body, "PUT", &response);
+    printf("%s",response);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to post update to github API\n");
         goto cleanup;

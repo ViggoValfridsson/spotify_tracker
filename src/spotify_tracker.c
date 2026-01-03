@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define GIST_INITIAL_SIZE 1000
+#define FILE_CONTENT_INITIAL_SIZE 1000
 
 int append_string(char *input, char *content, int current_size, int current_pos, int *new_pos_out,
                        int *new_size_out, char **content_out) {
@@ -21,7 +21,7 @@ int append_string(char *input, char *content, int current_size, int current_pos,
     int new_pos = print_pos + input_len + 1;
 
     if (new_pos > current_size) {
-        new_size += GIST_INITIAL_SIZE;
+        new_size += FILE_CONTENT_INITIAL_SIZE;
 
         char *tmp = realloc(content, new_size);
         if (!tmp) {
@@ -40,9 +40,10 @@ int append_string(char *input, char *content, int current_size, int current_pos,
     return STATUS_SUCCESS;
 }
 
-int format_gist(artist *artists, int artist_len, song *songs, int song_len, char **gist_out) {
+// TODO: Split up this method
+int format_file(artist *artists, int artist_len, song *songs, int song_len, char **file_content_out) {
     char *content = NULL;
-    int current_size = GIST_INITIAL_SIZE;
+    int current_size = FILE_CONTENT_INITIAL_SIZE;
     int pos = 0;
 
     content = malloc(current_size);
@@ -100,17 +101,17 @@ int format_gist(artist *artists, int artist_len, song *songs, int song_len, char
         }
     }
 
-    *gist_out = content;
+    *file_content_out = content;
     return STATUS_SUCCESS;
 }
 
-int post_artists_to_gist() {
+int post_artists_to_github() {
     access_token *token = NULL;
     artist *artists = NULL;
     int artists_len;
     song *songs = NULL;
     int songs_len;
-    char *gist_content = NULL;
+    char *file_content = NULL;
 
     int return_value = refresh_access_token(&token);
     if (return_value != STATUS_SUCCESS) {
@@ -129,15 +130,15 @@ int post_artists_to_gist() {
         goto cleanup;
     }
 
-    return_value = format_gist(artists, artists_len, songs, songs_len, &gist_content);
+    return_value = format_file(artists, artists_len, songs, songs_len, &file_content);
     if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to format gist\n");
+        fprintf(stderr, "Failed to format file\n");
         goto cleanup;
     }
 
-    return_value = update_gist_content(gist_content);
+    return_value = update_repo_file_content(file_content);
     if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to update gist\n");
+        fprintf(stderr, "Failed to update repository file\n");
         goto cleanup;
     }
 
@@ -145,7 +146,7 @@ cleanup:
     free(token);
     free(artists);
     free(songs);
-    free(gist_content);
+    free(file_content);
 
     return return_value;
 }
@@ -173,7 +174,7 @@ int main(int argc, char *argv[]) {
     if (is_logging_in) {
         return_value = login();
     } else {
-        return_value = post_artists_to_gist();
+        return_value = post_artists_to_github();
     }
 
     curl_global_cleanup();
