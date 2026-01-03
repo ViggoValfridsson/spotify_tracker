@@ -16,7 +16,8 @@
 #define REFRESH_TOKEN_FILE_PATH "~/.config/spotify-tracker/spotify-refresh-token"
 
 #define TOKEN_ENDPOINT "https://accounts.spotify.com/api/token"
-#define TOKEN_ENDPOINT_FORM_BODY_LEN 3
+#define GET_TOKEN_BY_AUTHORIZATION_CODE_FORM_LEN 3
+#define GET_TOKEN_BY_REFRESH_TOKEN_FORM_LEN 2
 
 #define AUTHORIZE_ENDPOINT_BASE "https://accounts.spotify.com/authorize"
 #define AUTHORIZE_PARAMETERS_LEN 4
@@ -147,12 +148,13 @@ int get_access_token_from_authorization_code(char *redirect_code, access_token *
     access_token *token = NULL;
     char *body = NULL;
 
-    form_key_value_pair body_kvps[TOKEN_ENDPOINT_FORM_BODY_LEN] = {
+    form_key_value_pair body_kvps[GET_TOKEN_BY_AUTHORIZATION_CODE_FORM_LEN] = {
         {"code", ""}, {"grant_type", "authorization_code"}, {"redirect_uri", REDIRECT_URI}};
     snprintf(body_kvps[0].value, sizeof(body_kvps[0].value), "%s", redirect_code);
     size_t unused_len;
 
-    int return_value = create_form_url_encoded_kvps(body_kvps, TOKEN_ENDPOINT_FORM_BODY_LEN, &body, &unused_len);
+    int return_value =
+        create_form_url_encoded_kvps(body_kvps, GET_TOKEN_BY_AUTHORIZATION_CODE_FORM_LEN, &body, &unused_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
@@ -175,12 +177,12 @@ int get_access_token_from_refresh_token(char *refresh_token, access_token **toke
     access_token *token = NULL;
     char *body = NULL;
 
-    form_key_value_pair body_kvps[TOKEN_ENDPOINT_FORM_BODY_LEN] = {{"refresh_token", ""},
-                                                                   {"grant_type", "refresh_token"}};
+    form_key_value_pair body_kvps[GET_TOKEN_BY_REFRESH_TOKEN_FORM_LEN] = {{"refresh_token", ""},
+                                                                          {"grant_type", "refresh_token"}};
     snprintf(body_kvps[0].value, sizeof(body_kvps[0].value), "%s", refresh_token);
     size_t unused_len;
 
-    int return_value = create_form_url_encoded_kvps(body_kvps, TOKEN_ENDPOINT_FORM_BODY_LEN, &body, &unused_len);
+    int return_value = create_form_url_encoded_kvps(body_kvps, GET_TOKEN_BY_REFRESH_TOKEN_FORM_LEN, &body, &unused_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
