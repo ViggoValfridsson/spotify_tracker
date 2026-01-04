@@ -5,9 +5,8 @@
 #include <string.h>
 
 int get_input(const char *prompt, size_t max_len, char **input_out) {
-    if (max_len == 0) {
+    if (max_len == 0)
         return STATUS_ERROR;
-    }
 
     printf("%s", prompt);
     fflush(stdout);

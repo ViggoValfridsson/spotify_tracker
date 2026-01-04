@@ -66,9 +66,8 @@ int parse_config_json(char *file_content, github_config **config_out) {
 int read_github_config_file(char *file_path, github_config **config_out) {
     char *file_content;
 
-    if (read_file_content(file_path, &file_content) != STATUS_SUCCESS) {
+    if (read_file_content(file_path, &file_content) != STATUS_SUCCESS)
         return STATUS_FILE_ERROR;
-    }
 
     github_config *config;
 
@@ -89,52 +88,39 @@ int create_update_file_body(char *message, char *committer_name, char *committer
     int return_value = STATUS_ERROR;
 
     cJSON *root = cJSON_CreateObject();
-    if (!root) {
+    if (!root)
         return STATUS_ERROR;
-    }
-
-    if (!cJSON_AddStringToObject(root, "message", message)) {
+    if (!cJSON_AddStringToObject(root, "message", message))
         goto cleanup;
-    }
 
     cJSON *committer = cJSON_CreateObject();
-    if (!committer) {
+    if (!committer)
         goto cleanup;
-    }
 
-    if (!cJSON_AddStringToObject(committer, "name", committer_name)) {
+    if (!cJSON_AddStringToObject(committer, "name", committer_name))
         goto cleanup;
-    }
 
-    if (!cJSON_AddStringToObject(committer, "email", committer_email)) {
+    if (!cJSON_AddStringToObject(committer, "email", committer_email))
         goto cleanup;
-    }
 
-    if (!cJSON_AddItemToObject(root, "committer", committer)) {
+    if (!cJSON_AddItemToObject(root, "committer", committer))
         goto cleanup;
-    }
 
-    if (sha) {
-        if (!cJSON_AddStringToObject(root, "sha", sha)) {
-            goto cleanup;
-        }
-    }
+    if (sha && !cJSON_AddStringToObject(root, "sha", sha))
+        goto cleanup;
 
     int content_len = strlen(content + 1);
     int base64_size = base64_encode(content, content_len, &base64_content);
-    if (base64_size == STATUS_ERROR) {
+    if (base64_size == STATUS_ERROR)
         goto cleanup;
-    }
 
-    if (!cJSON_AddStringToObject(root, "content", base64_content)) {
+    if (!cJSON_AddStringToObject(root, "content", base64_content))
         goto cleanup;
-    }
 
     char *json_string = cJSON_Print(root);
 
-    if (!json_string) {
+    if (!json_string)
         goto cleanup;
-    }
 
     *json_out = json_string;
     return_value = STATUS_SUCCESS;

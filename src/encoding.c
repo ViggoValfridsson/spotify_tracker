@@ -1,12 +1,11 @@
+#include "encoding.h"
+#include "cencode.h"
+#include "common.h"
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "cencode.h"
-#include "common.h"
-#include "encoding.h"
 
 int base64_encode(char *input, int input_len, char **base64_out) {
     base64_encodestate state;
@@ -24,6 +23,7 @@ int base64_encode(char *input, int input_len, char **base64_out) {
 
     output[count] = '\0';
     *base64_out = output;
+
     return max_size;
 }
 
@@ -41,7 +41,6 @@ int url_encode(char *input, int input_len, char **url_encode_out) {
 
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ||
             c == '.' || c == '~') {
-
             result[result_index] = c;
             result_index++;
         } else {
@@ -54,5 +53,6 @@ int url_encode(char *input, int input_len, char **url_encode_out) {
 
     result[result_index] = '\0';
     *url_encode_out = result;
+
     return STATUS_SUCCESS;
 }

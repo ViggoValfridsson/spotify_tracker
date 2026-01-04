@@ -24,9 +24,8 @@ int append_string(char *input, char *content, int current_size, int current_pos,
         new_size += FILE_CONTENT_INITIAL_SIZE;
 
         char *tmp = realloc(content, new_size);
-        if (!tmp) {
+        if (!tmp)
             return STATUS_ERROR;
-        }
 
         content = tmp;
     }
@@ -42,10 +41,8 @@ int append_string(char *input, char *content, int current_size, int current_pos,
 
 int format_artist_stats(char *content, int current_size, int pos, artist *artists, int artists_len, int *new_size_out,
                         int *pos_out) {
-    if (append_string("## Top Artists\n", content, current_size, pos, &pos, &current_size, &content) !=
-        STATUS_SUCCESS) {
+    if (append_string("## Top Artists\n", content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS)
         return STATUS_ERROR;
-    }
 
     for (int i = 0; i < artists_len; i++) {
         char *row;
@@ -53,9 +50,9 @@ int format_artist_stats(char *content, int current_size, int pos, artist *artist
 
         int write_status = append_string(row, content, current_size, pos, &pos, &current_size, &content);
         free(row);
-        if (write_status != STATUS_SUCCESS) {
+
+        if (write_status != STATUS_SUCCESS)
             return STATUS_ERROR;
-        }
     }
 
     *new_size_out = current_size;
@@ -66,10 +63,8 @@ int format_artist_stats(char *content, int current_size, int pos, artist *artist
 
 int format_song_stats(char *content, int current_size, int pos, song *songs, int songs_len, int *new_size_out,
                       int *pos_out) {
-    if (append_string("\n## Top Tracks\n", content, current_size, pos, &pos, &current_size, &content) !=
-        STATUS_SUCCESS) {
+    if (append_string("\n## Top Tracks\n", content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS)
         return STATUS_ERROR;
-    }
 
     for (int i = 0; i < songs_len; i++) {
         char *row;
@@ -79,9 +74,9 @@ int format_song_stats(char *content, int current_size, int pos, song *songs, int
 
         int write_state = append_string(row, content, current_size, pos, &pos, &current_size, &content);
         free(row);
-        if (write_state != STATUS_SUCCESS) {
+
+        if (write_state != STATUS_SUCCESS)
             return STATUS_ERROR;
-        }
     }
 
     *new_size_out = current_size;
@@ -133,9 +128,8 @@ int post_artists_to_github() {
     char *file_content = NULL;
 
     int return_value = refresh_access_token(&token);
-    if (return_value != STATUS_SUCCESS) {
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     return_value = get_top_artists(token, &artists, &artists_len);
     if (return_value != STATUS_SUCCESS) {
@@ -174,6 +168,7 @@ int main(int argc, char *argv[]) {
     CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
 
     if (res) {
+        fprintf(stderr, "Failed to initialize curl\n");
         return res;
     }
 

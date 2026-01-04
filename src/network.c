@@ -1,3 +1,7 @@
+#include "network.h"
+#include "cJSON.h"
+#include "common.h"
+#include "encoding.h"
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <stddef.h>
@@ -5,14 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "cJSON.h"
-#include "common.h"
-#include "encoding.h"
-#include "network.h"
-
 #define CREDENTIALS_MAX 1024
-// 22 to make space for "Authorization: Basic  "
-#define BASIC_HEADER_PREFIX_LEN 22
 
 typedef struct {
     char *key;
@@ -179,14 +176,16 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
         goto cleanup;
     }
 
-    int header_len = base64_size + BASIC_HEADER_PREFIX_LEN;
+    char basic_header_prefix[] = "Authorization: Basic ";
+    int header_len = base64_size + strlen(basic_header_prefix);
+
     basic_header = malloc(header_len);
     if (!basic_header) {
         perror("malloc");
         goto cleanup;
     }
 
-    if (snprintf(basic_header, header_len, "Authorization: Basic %s", base64_credentials) >= header_len) {
+    if (snprintf(basic_header, header_len, "%s%s", basic_header_prefix, base64_credentials) >= header_len) {
         fprintf(stderr, "Basic header result is too long\n");
         goto cleanup;
     }
@@ -239,20 +238,18 @@ cleanup:
 }
 
 int get_status(int http_code) {
-    if (http_code >= 200 && http_code <= 300) {
+    if (http_code >= 200 && http_code <= 300)
         return STATUS_SUCCESS;
-    } else if (http_code == 401 || http_code == 403) {
+    else if (http_code == 401 || http_code == 403)
         return STATUS_NETWORK_AUTHENTICATION_ERROR;
-    } else if (http_code == 404) {
+    else if (http_code == 404)
         return STATUS_NETWORK_NOT_FOUND_ERROR;
-    }
-    else if (http_code >= 300 && http_code <= 400) {
+    else if (http_code >= 300 && http_code <= 400)
         return STATUS_NETWORK_CLIENT_ERROR;
-    } else if (http_code >= 400 && http_code <= 500) {
+    else if (http_code >= 400 && http_code <= 500)
         return STATUS_NETWORK_SERVER_ERROR;
-    } else {
+    else
         return STATUS_BAD_HTTP_CODE;
-    }
 }
 
 int read_response_callback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -281,13 +278,13 @@ int http_request(char *url, struct curl_slist *headers, const char *body, char *
 
     // Uncomment this to enable verbose logging
     // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
-    if (headers) {
+
+    if (headers)
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    }
+
     if (body) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(body));
@@ -306,14 +303,12 @@ int http_request(char *url, struct curl_slist *headers, const char *body, char *
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-    if (result != CURLE_OK) {
+    if (result != CURLE_OK)
         fprintf(stderr, "%s failed: %s\n", method, curl_easy_strerror(result));
-    }
 
     curl_easy_cleanup(curl);
-    if (response_body.data) {
+    if (response_body.data)
         *response_out = response_body.data;
-    }
 
     return result == CURLE_OK ? get_status(http_code) : STATUS_NETWORK_ERROR;
 }
@@ -348,9 +343,8 @@ int parse_token_response(char *input, access_token **token_out) {
     snprintf(token->token_type, sizeof(token->token_type), "%s", token_type->valuestring);
     token->expires_in = expires_in->valueint;
     // Refresh token is not always included, it being missing is not an error
-    if (cJSON_IsString(refresh_token)) {
+    if (cJSON_IsString(refresh_token))
         snprintf(token->refresh_token, sizeof(token->refresh_token), "%s", refresh_token->valuestring);
-    }
 
     *token_out = token;
     return_value = STATUS_SUCCESS;

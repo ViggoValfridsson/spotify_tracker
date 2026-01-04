@@ -1,3 +1,9 @@
+#include "spotify_api.h"
+#include "cJSON.h"
+#include "common.h"
+#include "file.h"
+#include "io.h"
+#include "network.h"
 #include <curl/curl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -5,27 +11,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "cJSON.h"
-#include "common.h"
-#include "file.h"
-#include "io.h"
-#include "network.h"
-#include "spotify_api.h"
-
 #define CREDENTIALS_FILE_PATH "~/.config/spotify-tracker/spotify-credentials"
 #define REFRESH_TOKEN_FILE_PATH "~/.config/spotify-tracker/spotify-refresh-token"
 
 #define TOKEN_ENDPOINT "https://accounts.spotify.com/api/token"
-#define GET_TOKEN_BY_AUTHORIZATION_CODE_FORM_LEN 3
-#define GET_TOKEN_BY_REFRESH_TOKEN_FORM_LEN 2
-
 #define AUTHORIZE_ENDPOINT_BASE "https://accounts.spotify.com/authorize"
-#define AUTHORIZE_PARAMETERS_LEN 4
-
+#define TOP_ARTISTS_ENDPOINT "https://api.spotify.com/v1/me/top/artists?time_range=short_term&limit=5&offset=0"
+#define TOP_TRACKS_ENDPOINT "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5&offset=0"
 #define REDIRECT_URI "https://httpbin.org/anything"
-
-#define TOP_ARTISTS_URI "https://api.spotify.com/v1/me/top/artists?time_range=short_term&limit=5&offset=0"
-#define TOP_TRACKS_URI "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5&offset=0"
 
 int parse_credentials_json(char *file_content, client_credentials **credentials_out) {
     cJSON *json = cJSON_Parse(file_content);
@@ -61,22 +54,20 @@ int parse_credentials_json(char *file_content, client_credentials **credentials_
 }
 
 int read_spotify_credentials_file(char *credentials_file_path, client_credentials **credentials_out) {
+    client_credentials *credentials = NULL;
     char *file_content;
 
-    if (read_file_content(credentials_file_path, &file_content) != STATUS_SUCCESS) {
+    if (read_file_content(credentials_file_path, &file_content) != STATUS_SUCCESS)
         return STATUS_FILE_ERROR;
-    }
 
-    client_credentials *credentials;
-
-    if (parse_credentials_json(file_content, &credentials) != STATUS_SUCCESS) {
-        free(file_content);
-        return STATUS_FILE_ERROR;
-    }
-
-    free(file_content);
+    int return_value = parse_credentials_json(file_content, &credentials) !=
+                       STATUS_SUCCESS if (return_value != STATUS_SUCCESS) goto cleanup;
 
     *credentials_out = credentials;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(file_content);
     return STATUS_SUCCESS;
 }
 
@@ -148,22 +139,21 @@ int get_access_token_from_authorization_code(char *redirect_code, access_token *
     access_token *token = NULL;
     char *body = NULL;
 
-    form_key_value_pair body_kvps[GET_TOKEN_BY_AUTHORIZATION_CODE_FORM_LEN] = {
+    form_key_value_pair body_kvps[] = {
         {"code", ""}, {"grant_type", "authorization_code"}, {"redirect_uri", REDIRECT_URI}};
     snprintf(body_kvps[0].value, sizeof(body_kvps[0].value), "%s", redirect_code);
-    size_t unused_len;
+    size_t unused;
 
-    int return_value =
-        create_form_url_encoded_kvps(body_kvps, GET_TOKEN_BY_AUTHORIZATION_CODE_FORM_LEN, &body, &unused_len);
+    int body_len = sizeof(body_kvps) / sizeof(body_kvps[0]);
+    int return_value = create_form_url_encoded_kvps(body_kvps, body_len, &body, &unused);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
     }
 
     return_value = get_access_token(body, &token);
-    if (return_value != STATUS_SUCCESS) {
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     *token_out = token;
     return_value = STATUS_SUCCESS;
@@ -177,21 +167,20 @@ int get_access_token_from_refresh_token(char *refresh_token, access_token **toke
     access_token *token = NULL;
     char *body = NULL;
 
-    form_key_value_pair body_kvps[GET_TOKEN_BY_REFRESH_TOKEN_FORM_LEN] = {{"refresh_token", ""},
-                                                                          {"grant_type", "refresh_token"}};
+    form_key_value_pair body_kvps[] = {{"refresh_token", ""}, {"grant_type", "refresh_token"}};
     snprintf(body_kvps[0].value, sizeof(body_kvps[0].value), "%s", refresh_token);
     size_t unused_len;
 
-    int return_value = create_form_url_encoded_kvps(body_kvps, GET_TOKEN_BY_REFRESH_TOKEN_FORM_LEN, &body, &unused_len);
+    int body_len = sizeof(body_kvps) / sizeof(body_kvps[0]);
+    int return_value = create_form_url_encoded_kvps(body_kvps, body_len, &body, &unused_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
     }
 
     return_value = get_access_token(body, &token);
-    if (return_value != STATUS_SUCCESS) {
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     *token_out = token;
     return_value = STATUS_SUCCESS;
@@ -210,19 +199,19 @@ int create_authorization_endpoint(char **endpoint_out) {
         goto cleanup;
     }
 
-    form_key_value_pair query_parameters[AUTHORIZE_PARAMETERS_LEN] = {
+    form_key_value_pair query_parameters[] = {
         {"client_id", ""},
         {"response_type", "code"},
         {"redirect_uri", REDIRECT_URI},
         {"scope", "user-top-read"},
     };
     snprintf(query_parameters[0].value, sizeof(query_parameters[0].value), "%s", credentials->client_id);
+    int parameters_len = sizeof(query_parameters) / sizeof(query_parameters[0]);
 
     char *endpoint;
-    return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, query_parameters, AUTHORIZE_PARAMETERS_LEN, &endpoint);
-    if (return_value != STATUS_SUCCESS) {
+    return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, query_parameters, parameters_len, &endpoint);
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     *endpoint_out = endpoint;
     return_value = STATUS_SUCCESS;
@@ -483,10 +472,9 @@ cleanup:
 int get_top_artists(access_token *access_token, artist **artists_out, int *artists_len_out) {
     char *response = NULL;
 
-    int return_value = spotify_get(TOP_ARTISTS_URI, access_token, &response);
-    if (return_value != STATUS_SUCCESS) {
+    int return_value = spotify_get(TOP_ARTISTS_ENDPOINT, access_token, &response);
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     artist *artists = NULL;
     int artists_len;
@@ -509,10 +497,9 @@ cleanup:
 int get_top_songs(access_token *access_token, song **songs_out, int *songs_len_out) {
     char *response = NULL;
 
-    int return_value = spotify_get(TOP_TRACKS_URI, access_token, &response);
-    if (return_value != STATUS_SUCCESS) {
+    int return_value = spotify_get(TOP_TRACKS_ENDPOINT, access_token, &response);
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     song *songs = NULL;
     int songs_len;

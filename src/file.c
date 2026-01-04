@@ -1,3 +1,5 @@
+#include "file.h"
+#include "common.h"
 #include <curl/curl.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -6,34 +8,26 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "cJSON.h"
-#include "common.h"
-#include "file.h"
-#include "github_api.h"
-#include "network.h"
-
 #define MAX_FILE_PATH 2048
 
 void print_fopen_error() {
-    if (errno == ENOENT) {
+    if (errno == ENOENT)
         fprintf(stderr, "Cannot read credentials file: File doesn't exist\n");
-    } else if (errno == EACCES) {
+    else if (errno == EACCES)
         fprintf(stderr, "Cannot read credentials file: Permission denied\n");
-    } else {
+    else
         fprintf(stderr, "Cannot read credentials file: Error %d\n", errno);
-    }
 }
 
 // Expand ~ to actual home directory path
 int expand_file_name(char *file_name, char **resolved_name_out) {
     char *resolved_name = malloc(MAX_FILE_PATH);
 
-    if (!resolved_name) {
+    if (!resolved_name)
         return STATUS_ERROR;
-    }
 
     if (file_name[0] != '~') {
-        strcpy(resolved_name, file_name);
+        strncpy(resolved_name, file_name, MAX_FILE_PATH - 1);
     } else {
         char *home = getenv("HOME");
 
@@ -65,9 +59,8 @@ int open_file(char *file_name, char *open_mode, FILE **file_out) {
     errno = 0;
 
     char *resolved_name;
-    if (expand_file_name(file_name, &resolved_name) != STATUS_SUCCESS) {
+    if (expand_file_name(file_name, &resolved_name) != STATUS_SUCCESS)
         return STATUS_ERROR;
-    }
 
     FILE *file = fopen(resolved_name, open_mode);
 
@@ -132,14 +125,12 @@ int read_file_content(char *file_path, char **file_content_out) {
     }
 
     long size;
-    if (get_file_size(file, &size)) {
+    if (get_file_size(file, &size))
         return STATUS_FILE_ERROR;
-    }
 
     char *data;
-    if (read_file(file, size, &data)) {
+    if (read_file(file, size, &data))
         return STATUS_FILE_ERROR;
-    }
 
     *file_content_out = data;
     return STATUS_SUCCESS;
