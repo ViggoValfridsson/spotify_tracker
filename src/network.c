@@ -242,7 +242,7 @@ int get_status(int http_code) {
     if (http_code >= 200 && http_code <= 300) {
         return STATUS_SUCCESS;
     } else if (http_code == 401 || http_code == 403) {
-        return STATUS_AUTHENTICATION_ERROR;
+        return STATUS_NETWORK_AUTHENTICATION_ERROR;
     } else if (http_code == 404) {
         return STATUS_NETWORK_NOT_FOUND_ERROR;
     }
