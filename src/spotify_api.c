@@ -376,7 +376,7 @@ int parse_artist(cJSON *item, artist *artist) {
     return STATUS_SUCCESS;
 }
 
-int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
+int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
     cJSON *items = NULL;
 
     int return_value = parse_items_array(input, &items);
@@ -404,7 +404,7 @@ int parse_artists(char *input, artist **artists_out, int *artist_len_out) {
     }
 
     *artists_out = artists;
-    *artist_len_out = count;
+    *artists_len_out = count;
     return_value = STATUS_SUCCESS;
 
 cleanup:
@@ -422,7 +422,7 @@ int parse_song(cJSON *item, song *song) {
 
     snprintf(song->name, sizeof(song->name), "%s", name->valuestring);
 
-    int artist_len = cJSON_GetArraySize(artists);
+    int artists_len = cJSON_GetArraySize(artists);
     cJSON *artist;
     int i = 0;
     size_t pos = 0;
@@ -435,7 +435,7 @@ int parse_song(cJSON *item, song *song) {
         }
 
         pos += snprintf(song->artist + pos, sizeof(song->artist) - pos, "%s%s", artist_name->valuestring,
-                        (i < artist_len - 1) ? ", " : "");
+                        (i < artists_len - 1) ? ", " : "");
 
         i++;
     }
@@ -489,16 +489,16 @@ int get_top_artists(access_token *access_token, artist **artists_out, int *artis
     }
 
     artist *artists = NULL;
-    int artist_len;
+    int artists_len;
 
-    return_value = parse_artists(response, &artists, &artist_len);
+    return_value = parse_artists(response, &artists, &artists_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to parse response from spotify API\n");
         goto cleanup;
     }
 
     *artists_out = artists;
-    *artists_len_out = artist_len;
+    *artists_len_out = artists_len;
     return_value = STATUS_SUCCESS;
 
 cleanup:

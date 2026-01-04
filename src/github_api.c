@@ -178,7 +178,6 @@ int parse_file_json(char *input, char **sha_out) {
     return STATUS_SUCCESS;
 }
 
-// TODO: Need to handle not found
 int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out) {
     struct curl_slist *headers = NULL;
     char *sha;
@@ -204,7 +203,7 @@ int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out)
 
     return_value = http_request(endpoint, headers, NULL, "GET", &response);
     if (return_value == STATUS_NETWORK_NOT_FOUND_ERROR) {
-        // File was not found, not an error
+        // File was not found, this is not an error
         return_value = STATUS_SUCCESS;
         goto cleanup;
     } else if (return_value != STATUS_SUCCESS) {
@@ -282,7 +281,6 @@ int update_repo_file_content(char *content) {
     }
 
     return_value = http_request(repo_endpoint, headers, update_body, "PUT", &response);
-    printf("%s", response);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to post update to github API\n");
         goto cleanup;

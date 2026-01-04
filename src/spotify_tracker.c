@@ -11,8 +11,8 @@
 
 #define FILE_CONTENT_INITIAL_SIZE 1000
 
-int append_string(char *input, char *content, int current_size, int current_pos, int *new_pos_out,
-                       int *new_size_out, char **content_out) {
+int append_string(char *input, char *content, int current_size, int current_pos, int *new_pos_out, int *new_size_out,
+                  char **content_out) {
     int input_len = strlen(input);
     int new_size = current_size;
     // -1 to overwrite old null terminator
@@ -40,8 +40,57 @@ int append_string(char *input, char *content, int current_size, int current_pos,
     return STATUS_SUCCESS;
 }
 
-// TODO: Split up this method
-int format_file(artist *artists, int artist_len, song *songs, int song_len, char **file_content_out) {
+int format_artist_stats(char *content, int current_size, int pos, artist *artists, int artists_len, int *new_size_out,
+                        int *pos_out) {
+    if (append_string("## Top Artists\n", content, current_size, pos, &pos, &current_size, &content) !=
+        STATUS_SUCCESS) {
+        return STATUS_ERROR;
+    }
+
+    for (int i = 0; i < artists_len; i++) {
+        char *row;
+        asprintf(&row, "%d. **%s**\n", i + 1, artists[i].name);
+
+        int write_status = append_string(row, content, current_size, pos, &pos, &current_size, &content);
+        free(row);
+        if (write_status != STATUS_SUCCESS) {
+            return STATUS_ERROR;
+        }
+    }
+
+    *new_size_out = current_size;
+    *pos_out = pos;
+
+    return STATUS_SUCCESS;
+}
+
+int format_song_stats(char *content, int current_size, int pos, song *songs, int songs_len, int *new_size_out,
+                      int *pos_out) {
+    if (append_string("\n## Top Tracks\n", content, current_size, pos, &pos, &current_size, &content) !=
+        STATUS_SUCCESS) {
+        return STATUS_ERROR;
+    }
+
+    for (int i = 0; i < songs_len; i++) {
+        char *row;
+        if (asprintf(&row, "%d. **%s** · %s\n", i + 1, songs[i].name, songs[i].artist) == -1) {
+            return STATUS_ERROR;
+        }
+
+        int write_state = append_string(row, content, current_size, pos, &pos, &current_size, &content);
+        free(row);
+        if (write_state != STATUS_SUCCESS) {
+            return STATUS_ERROR;
+        }
+    }
+
+    *new_size_out = current_size;
+    *pos_out = pos;
+
+    return STATUS_SUCCESS;
+}
+
+int format_file(artist *artists, int artists_len, song *songs, int songs_len, char **file_content_out) {
     char *content = NULL;
     int current_size = FILE_CONTENT_INITIAL_SIZE;
     int pos = 0;
@@ -61,44 +110,14 @@ int format_file(artist *artists, int artist_len, song *songs, int song_len, char
         return STATUS_ERROR;
     }
 
-    char artist_header[] = "## Top Artists\n";
-    if (append_string(artist_header, content, current_size, pos, &pos, &current_size, &content) !=
-        STATUS_SUCCESS) {
+    if (format_artist_stats(content, current_size, pos, artists, artists_len, &current_size, &pos)) {
         free(content);
         return STATUS_ERROR;
     }
 
-    for (int i = 0; i < artist_len; i++) {
-        char *row;
-        asprintf(&row, "%d. **%s**\n", i + 1, artists[i].name);
-
-        int write_status = append_string(row, content, current_size, pos, &pos, &current_size, &content);
-        free(row);
-        if (write_status != STATUS_SUCCESS) {
-            free(content);
-            return STATUS_ERROR;
-        }
-    }
-
-    char song_header[] = "\n## Top Tracks\n";
-    if (append_string(song_header, content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS) {
+    if (format_song_stats(content, current_size, pos, songs, songs_len, &current_size, &pos)) {
         free(content);
         return STATUS_ERROR;
-    }
-
-    for (int i = 0; i < song_len; i++) {
-        char *row;
-        if (asprintf(&row, "%d. **%s** · %s\n", i + 1, songs[i].name, songs[i].artist) == -1) {
-            free(content);
-            return STATUS_ERROR;
-        }
-
-        int write_state = append_string(row, content, current_size, pos, &pos, &current_size, &content);
-        free(row);
-        if (write_state != STATUS_SUCCESS) {
-            free(content);
-            return STATUS_ERROR;
-        }
     }
 
     *file_content_out = content;
@@ -175,6 +194,7 @@ int main(int argc, char *argv[]) {
         return_value = login();
     } else {
         return_value = post_artists_to_github();
+        printf("Successfully updated Spotify stats\n");
     }
 
     curl_global_cleanup();
