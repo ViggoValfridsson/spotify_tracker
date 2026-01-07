@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int base64_encode(char *input, int input_len, char **base64_out) {
+int base64_encode(char *input, int input_len, char **base64_out, int *size_out) {
     base64_encodestate state;
     base64_init_encodestate(&state);
     int max_size = (input_len * 2) + 4;
@@ -22,13 +22,16 @@ int base64_encode(char *input, int input_len, char **base64_out) {
     count += base64_encode_blockend(output + count, &state);
 
     output[count] = '\0';
-    *base64_out = output;
 
-    return max_size;
+    *base64_out = output;
+    *size_out = max_size;
+
+    return STATUS_SUCCESS;
 }
 
 int url_encode(char *input, int input_len, char **url_encode_out) {
-    char *result = malloc(input_len * 3 + 1);
+    int max_size = input_len * 3 + 1;
+    char *result = malloc(max_size);
     int result_index = 0;
 
     if (!result) {

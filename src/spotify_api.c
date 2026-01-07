@@ -55,20 +55,22 @@ int parse_credentials_json(char *file_content, client_credentials **credentials_
 
 int read_spotify_credentials_file(char *credentials_file_path, client_credentials **credentials_out) {
     client_credentials *credentials = NULL;
-    char *file_content;
+    char *file_content = NULL;
 
-    if (read_file_content(credentials_file_path, &file_content) != STATUS_SUCCESS)
-        return STATUS_FILE_ERROR;
+    int return_value = read_file_content(credentials_file_path, &file_content);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
-    int return_value = parse_credentials_json(file_content, &credentials) !=
-                       STATUS_SUCCESS if (return_value != STATUS_SUCCESS) goto cleanup;
+    return_value = parse_credentials_json(file_content, &credentials);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     *credentials_out = credentials;
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(file_content);
-    return STATUS_SUCCESS;
+    return return_value;
 }
 
 int get_access_token_header(struct curl_slist **header_out) {

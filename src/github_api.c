@@ -109,9 +109,10 @@ int create_update_file_body(char *message, char *committer_name, char *committer
     if (sha && !cJSON_AddStringToObject(root, "sha", sha))
         goto cleanup;
 
-    int content_len = strlen(content + 1);
-    int base64_size = base64_encode(content, content_len, &base64_content);
-    if (base64_size == STATUS_ERROR)
+    int content_len = strlen(content);
+    int base64_size;
+    return_value = base64_encode(content, content_len, &base64_content, &base64_size);
+    if (return_value == STATUS_ERROR)
         goto cleanup;
 
     if (!cJSON_AddStringToObject(root, "content", base64_content))

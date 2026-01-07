@@ -167,33 +167,38 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
     if (snprint_res >= CREDENTIALS_MAX) {
         fprintf(stderr, "Credentials are too long. Max length of password and username combined is %d\n",
                 CREDENTIALS_MAX);
+        return_value = STATUS_ERROR;
         goto cleanup;
     }
 
-    int base64_size = base64_encode(credentials, snprint_res, &base64_credentials);
-    if (base64_size == STATUS_ERROR) {
+    int base64_size;
+    return_value = base64_encode(credentials, snprint_res, &base64_credentials, &base64_size);
+    if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to base64 encode basic header\n");
         goto cleanup;
     }
 
     char basic_header_prefix[] = "Authorization: Basic ";
-    int header_len = base64_size + strlen(basic_header_prefix);
+    int header_len = base64_size + strlen(basic_header_prefix) + 1;
 
     basic_header = malloc(header_len);
     if (!basic_header) {
         perror("malloc");
+        return_value = STATUS_ERROR;
         goto cleanup;
     }
 
     if (snprintf(basic_header, header_len, "%s%s", basic_header_prefix, base64_credentials) >= header_len) {
         fprintf(stderr, "Basic header result is too long\n");
+        return_value = STATUS_ERROR;
         goto cleanup;
     }
 
     struct curl_slist *header = curl_slist_append(*header_out, basic_header);
     if (!header) {
         fprintf(stderr, "Failed to append header\n");
-        return STATUS_ERROR;
+        return_value = STATUS_ERROR;
+        goto cleanup;
     }
 
     *header_out = header;
