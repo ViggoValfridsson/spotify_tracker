@@ -56,23 +56,25 @@ int expand_file_name(char *file_name, char **resolved_name_out) {
 }
 
 int open_file(char *file_name, char *open_mode, FILE **file_out) {
+    char *resolved_name = NULL;
     errno = 0;
 
-    char *resolved_name;
-    if (expand_file_name(file_name, &resolved_name) != STATUS_SUCCESS)
-        return STATUS_ERROR;
+    int return_value = expand_file_name(file_name, &resolved_name);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     FILE *file = fopen(resolved_name, open_mode);
-
     if (!file) {
-        free(resolved_name);
         print_fopen_error();
-        return STATUS_FILE_ERROR;
+        return_value = STATUS_FILE_ERROR;
+        goto cleanup;
     }
 
-    free(resolved_name);
     *file_out = file;
-    return STATUS_SUCCESS;
+
+cleanup:
+    free(resolved_name);
+    return return_value;
 }
 
 int get_file_size(FILE *file, long *size_out) {
@@ -100,39 +102,45 @@ int read_file(FILE *file, long size, char **data_out) {
     char *data = malloc(size + 1);
 
     if (data == NULL) {
-        fclose(file);
         perror("malloc");
         return STATUS_ERROR;
     }
 
     if (fread(data, 1, size, file) == 0 && ferror(file) != 0) {
-        fclose(file);
         free(data);
         perror("fread");
         return STATUS_FILE_ERROR;
     }
 
-    fclose(file);
     data[size] = '\0';
     *data_out = data;
+
     return STATUS_SUCCESS;
 }
 
 int read_file_content(char *file_path, char **file_content_out) {
     FILE *file = NULL;
-    if (open_file(file_path, "r", &file) != STATUS_SUCCESS) {
-        return STATUS_FILE_ERROR;
-    }
+
+    int return_value = open_file(file_path, "r", &file);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     long size;
-    if (get_file_size(file, &size))
-        return STATUS_FILE_ERROR;
+    return_value = get_file_size(file, &size);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     char *data;
-    if (read_file(file, size, &data))
-        return STATUS_FILE_ERROR;
+    return_value = read_file(file, size, &data);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     *file_content_out = data;
+
+cleanup:
+    if (file)
+        fclose(file);
+
     return STATUS_SUCCESS;
 }
 

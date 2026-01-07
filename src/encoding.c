@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int base64_encode(char *input, int input_len, char **base64_out, int *size_out) {
     base64_encodestate state;
@@ -24,7 +25,7 @@ int base64_encode(char *input, int input_len, char **base64_out, int *size_out) 
     output[count] = '\0';
 
     *base64_out = output;
-    *size_out = max_size;
+    *size_out = count + 1;
 
     return STATUS_SUCCESS;
 }
