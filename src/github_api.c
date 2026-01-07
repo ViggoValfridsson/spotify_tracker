@@ -57,29 +57,29 @@ int parse_config_json(char *file_content, github_config **config_out) {
     snprintf(config->email, sizeof(config->email), "%s", email->valuestring);
     snprintf(config->pat, sizeof(config->pat), "%s", pat->valuestring);
 
-    cJSON_Delete(json);
-
     *config_out = config;
     return STATUS_SUCCESS;
 }
 
 int read_github_config_file(char *file_path, github_config **config_out) {
-    char *file_content;
+    char *file_content = NULL;
 
-    if (read_file_content(file_path, &file_content) != STATUS_SUCCESS)
-        return STATUS_FILE_ERROR;
+    int return_value = read_file_content(file_path, &file_content);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     github_config *config;
 
-    if (parse_config_json(file_content, &config) != STATUS_SUCCESS) {
-        free(file_content);
-        return STATUS_FILE_ERROR;
-    }
-
-    free(file_content);
+    return_value = parse_config_json(file_content, &config);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     *config_out = config;
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(file_content);
+    return return_value;
 }
 
 int create_update_file_body(char *message, char *committer_name, char *committer_email, char *sha, char *content,
@@ -89,7 +89,8 @@ int create_update_file_body(char *message, char *committer_name, char *committer
 
     cJSON *root = cJSON_CreateObject();
     if (!root)
-        return STATUS_ERROR;
+        goto cleanup;
+
     if (!cJSON_AddStringToObject(root, "message", message))
         goto cleanup;
 
@@ -119,7 +120,6 @@ int create_update_file_body(char *message, char *committer_name, char *committer
         goto cleanup;
 
     char *json_string = cJSON_Print(root);
-
     if (!json_string)
         goto cleanup;
 
@@ -135,40 +135,36 @@ cleanup:
 
 int parse_file_json(char *input, char **sha_out) {
     cJSON *json = cJSON_Parse(input);
+    int return_value = STATUS_ERROR;
 
     if (!json) {
         fprintf(stderr, "File did not contain valid JSON\n");
-        return STATUS_FILE_ERROR;
+        goto cleanup;
     }
 
     cJSON *sha_json = cJSON_GetObjectItemCaseSensitive(json, "sha");
-
-    if (!cJSON_IsString(sha_json)) {
-        cJSON_Delete(json);
-        return STATUS_FILE_ERROR;
-    }
+    if (!cJSON_IsString(sha_json))
+        goto cleanup;
 
     int sha_len = strlen(sha_json->valuestring) + 1;
     char *sha = malloc(sha_len);
-
     if (sha == NULL) {
-        cJSON_Delete(json);
         perror("malloc");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     snprintf(sha, sha_len, "%s", sha_json->valuestring);
 
-    cJSON_Delete(json);
-
     *sha_out = sha;
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    cJSON_Delete(json);
+    return return_value;
 }
 
-int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out) {
+int get_existing_file_sha_headers(github_config *config, struct curl_slist **headers_out) {
     struct curl_slist *headers = NULL;
-    char *sha;
-    char *response = NULL;
 
     int return_value = append_header("Accept: ", "application/vnd.github+json", &headers);
     if (return_value != STATUS_SUCCESS) {
@@ -188,9 +184,29 @@ int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out)
         goto cleanup;
     }
 
+    *headers_out = headers;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    if (return_value != STATUS_SUCCESS)
+        curl_slist_free_all(headers);
+
+    return return_value;
+}
+
+int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out) {
+    struct curl_slist *headers = NULL;
+    char *sha;
+    char *response = NULL;
+
+    int return_value = get_existing_file_sha_headers(config, &headers);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
+
     return_value = http_request(endpoint, headers, NULL, "GET", &response);
+    // File was not found, this is not an error
     if (return_value == STATUS_NETWORK_NOT_FOUND_ERROR) {
-        // File was not found, this is not an error
+        sha_out = NULL;
         return_value = STATUS_SUCCESS;
         goto cleanup;
     } else if (return_value != STATUS_SUCCESS) {
@@ -210,6 +226,37 @@ int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out)
 cleanup:
     free(response);
     curl_slist_free_all(headers);
+
+    return return_value;
+}
+
+int get_update_file_content_headers(github_config *config, struct curl_slist **headers_out) {
+    struct curl_slist *headers = NULL;
+
+    int return_value = append_header("Authorization: Bearer ", config->pat, &headers);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to create bearer token header\n");
+        goto cleanup;
+    }
+
+    return_value = append_header("Accept: ", "application/vnd.github+json", &headers);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to create Accept header\n");
+        goto cleanup;
+    }
+
+    return_value = append_header("User-Agent: ", "Spotify Tracker", &headers);
+    if (return_value != STATUS_SUCCESS) {
+        fprintf(stderr, "Failed to create User-Agent header\n");
+        goto cleanup;
+    }
+
+    *headers_out = headers;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    if (return_value != STATUS_SUCCESS)
+        curl_slist_free_all(headers);
 
     return return_value;
 }
@@ -249,23 +296,9 @@ int update_repo_file_content(char *content) {
         goto cleanup;
     }
 
-    return_value = append_header("Authorization: Bearer ", config->pat, &headers);
-    if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to create bearer token header\n");
+    return_value = get_update_file_content_headers(config, &headers);
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
-
-    return_value = append_header("Accept: ", "application/vnd.github+json", &headers);
-    if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to create Accept header\n");
-        goto cleanup;
-    }
-
-    return_value = append_header("User-Agent: ", "Spotify Tracker", &headers);
-    if (return_value != STATUS_SUCCESS) {
-        fprintf(stderr, "Failed to create User-Agent header\n");
-        goto cleanup;
-    }
 
     return_value = http_request(repo_endpoint, headers, update_body, "PUT", &response);
     if (return_value != STATUS_SUCCESS) {

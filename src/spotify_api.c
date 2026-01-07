@@ -92,7 +92,7 @@ int get_access_token_header(struct curl_slist **header_out) {
     return_value = append_header("Content-Type: ", "application/x-www-form-urlencoded", &header);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create content-type header\n");
-        free(header);
+        curl_slist_free_all(header);
         goto cleanup;
     }
 

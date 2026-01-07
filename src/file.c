@@ -71,6 +71,7 @@ int open_file(char *file_name, char *open_mode, FILE **file_out) {
     }
 
     *file_out = file;
+    return_value = STATUS_SUCCESS;
 
 cleanup:
     free(resolved_name);
@@ -136,6 +137,7 @@ int read_file_content(char *file_path, char **file_content_out) {
         goto cleanup;
 
     *file_content_out = data;
+    return_value = STATUS_SUCCESS;
 
 cleanup:
     if (file)
