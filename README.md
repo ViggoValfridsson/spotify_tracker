@@ -81,9 +81,21 @@ Add your GitHub details:
 }
 ```
 
-### 6. Build and run
+### 6. Build
 
 ```sh
 make
+```
+
+### 7. Authenticate 
+
+Run the following command and follow the instructions
+```sh
+./bin/spotify-tracker -l
+```
+
+### 8. Run
+
+```sh
 ./bin/spotify-tracker
 ```
