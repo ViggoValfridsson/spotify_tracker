@@ -237,8 +237,8 @@ int authorize_application(char **redirect_code_out) {
 
     int max_input_len = 255;
 
-    printf("Please confirm the authentication: %s\n", authorization_endpoint);
-    return_value = get_input("Enter \"code\" from the redirect URI query params\n", max_input_len, &redirect_code);
+    printf("Open the link to login and accept: %s\n", authorization_endpoint);
+    return_value = get_input("After logging in paste \"code\" from the redirect URI query params here\n", max_input_len, &redirect_code);
 
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read code from input\n");

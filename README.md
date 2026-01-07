@@ -91,7 +91,7 @@ make
 
 Run the following command and follow the instructions
 ```sh
-./bin/spotify-tracker -l
+./bin/spotify-tracker --login
 ```
 
 ### 8. Run
