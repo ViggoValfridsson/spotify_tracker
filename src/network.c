@@ -40,13 +40,13 @@ int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out, i
     *key_out = encoded_key;
     *value_out = encoded_value;
     *encoded_len_out = strlen(encoded_key) + strlen(encoded_value);
+
     return STATUS_SUCCESS;
 }
 
 void cleanup_encoded_kvps(encoded_kvp *encoded_kvps, int len) {
-    if (!encoded_kvps) {
+    if (!encoded_kvps)
         return;
-    }
 
     for (int i = 0; i < len; i++) {
         free(encoded_kvps[i].key);
@@ -57,12 +57,11 @@ void cleanup_encoded_kvps(encoded_kvp *encoded_kvps, int len) {
 }
 
 int url_encode_kvps(form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_out, size_t *encoded_size_out) {
-    encoded_kvp *encoded_kvps = malloc(sizeof(encoded_kvp) * kvp_len);
     size_t encoded_size = 0;
 
-    if (!encoded_kvps) {
+    encoded_kvp *encoded_kvps = malloc(sizeof(encoded_kvp) * kvp_len);
+    if (!encoded_kvps)
         return STATUS_ERROR;
-    }
 
     for (int i = 0; i < kvp_len; i++) {
         int len;
@@ -78,6 +77,7 @@ int url_encode_kvps(form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_o
 
     *kvps_out = encoded_kvps;
     *encoded_size_out = encoded_size;
+
     return STATUS_SUCCESS;
 }
 
@@ -108,26 +108,29 @@ int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **
     encoded_kvp *encoded_kvps = NULL;
     size_t encoded_size;
 
-    if (url_encode_kvps(kvps, kvp_len, &encoded_kvps, &encoded_size) != STATUS_SUCCESS) {
-        return STATUS_ERROR;
-    }
+    int return_value = url_encode_kvps(kvps, kvp_len, &encoded_kvps, &encoded_size);
+    if (return_value != STATUS_SUCCESS)
+        goto cleanup;
 
     size_t real_size = encoded_size + 1;
     char *body = malloc(real_size);
 
     if (!body) {
         perror("malloc");
-        cleanup_encoded_kvps(encoded_kvps, kvp_len);
-        return STATUS_ERROR;
+        return_value = STATUS_ERROR;
+        goto cleanup;
     }
 
     write_encoded_kvps_to_body(body, encoded_kvps, kvp_len);
 
     *body_out = body;
     *size_out = real_size;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
     cleanup_encoded_kvps(encoded_kvps, kvp_len);
 
-    return STATUS_SUCCESS;
+    return return_value;
 }
 
 int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len, char **endpoint_out) {
@@ -136,19 +139,17 @@ int append_query_params(char *base_url, form_key_value_pair *parameters, int par
 
     int return_value =
         create_form_url_encoded_kvps(parameters, parameter_len, &encoded_parameters, &encoded_params_len);
-    if (return_value != STATUS_SUCCESS) {
+    if (return_value != STATUS_SUCCESS)
         goto cleanup;
-    }
 
     // + 1 to account for ? separator before appending query params
     int endpoint_len = strlen(base_url) + 1 + encoded_params_len;
-
     char *endpoint = malloc(endpoint_len);
-    if (!endpoint) {
+    if (!endpoint)
         goto cleanup;
-    }
 
     snprintf(endpoint, endpoint_len, "%s?%s", base_url, encoded_parameters);
+
     *endpoint_out = endpoint;
     return_value = STATUS_SUCCESS;
 
@@ -231,7 +232,7 @@ int append_header(char *prefix, char *value, struct curl_slist **header_out) {
     struct curl_slist *header = curl_slist_append(*header_out, header_value);
     if (!header) {
         fprintf(stderr, "Failed to append header\n");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     *header_out = header;
