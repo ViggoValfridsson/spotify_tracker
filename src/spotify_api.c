@@ -21,35 +21,36 @@
 #define REDIRECT_URI "https://httpbin.org/anything"
 
 int parse_credentials_json(char *file_content, client_credentials **credentials_out) {
-    cJSON *json = cJSON_Parse(file_content);
+    cJSON *json = NULL;
+    int return_value = STATUS_ERROR;
 
+    json = cJSON_Parse(file_content);
     if (!json) {
         fprintf(stderr, "File did not contain valid JSON\n");
-        return STATUS_FILE_ERROR;
+        goto cleanup;
     }
 
     cJSON *client_id = cJSON_GetObjectItemCaseSensitive(json, "clientId");
     cJSON *client_secret = cJSON_GetObjectItemCaseSensitive(json, "clientSecret");
 
-    if (!cJSON_IsString(client_id) || !cJSON_IsString(client_secret)) {
-        cJSON_Delete(json);
-        return STATUS_FILE_ERROR;
-    }
+    if (!cJSON_IsString(client_id) || !cJSON_IsString(client_secret))
+        goto cleanup;
 
     client_credentials *credentials = malloc(sizeof(client_credentials));
 
-    if (credentials == NULL) {
-        cJSON_Delete(json);
-        perror("malloc");
-        return STATUS_ERROR;
-    }
+    if (credentials == NULL)
+        goto cleanup;
 
     snprintf(credentials->client_id, sizeof(credentials->client_id), "%s", client_id->valuestring);
     snprintf(credentials->client_secret, sizeof(credentials->client_secret), "%s", client_secret->valuestring);
 
+    *credentials_out = credentials;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
     cJSON_Delete(json);
 
-    *credentials_out = credentials;
+    return return_value;
     return STATUS_SUCCESS;
 }
 
@@ -92,7 +93,6 @@ int get_access_token_header(struct curl_slist **header_out) {
     return_value = append_header("Content-Type: ", "application/x-www-form-urlencoded", &header);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create content-type header\n");
-        curl_slist_free_all(header);
         goto cleanup;
     }
 
@@ -101,6 +101,9 @@ int get_access_token_header(struct curl_slist **header_out) {
 
 cleanup:
     free(credentials);
+    if (return_value != STATUS_SUCCESS)
+        curl_slist_free_all(header);
+
     return return_value;
 }
 
@@ -127,8 +130,8 @@ int get_access_token(char *body, access_token **token_out) {
         goto cleanup;
     }
 
-    return_value = STATUS_SUCCESS;
     *token_out = token;
+    return_value = STATUS_SUCCESS;
 
 cleanup:
     free(response);
@@ -208,9 +211,10 @@ int create_authorization_endpoint(char **endpoint_out) {
         {"scope", "user-top-read"},
     };
     snprintf(query_parameters[0].value, sizeof(query_parameters[0].value), "%s", credentials->client_id);
-    int parameters_len = sizeof(query_parameters) / sizeof(query_parameters[0]);
 
+    int parameters_len = sizeof(query_parameters) / sizeof(query_parameters[0]);
     char *endpoint;
+
     return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, query_parameters, parameters_len, &endpoint);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
@@ -236,9 +240,9 @@ int authorize_application(char **redirect_code_out) {
     }
 
     int max_input_len = 255;
-
     printf("Open the link to login and accept: %s\n", authorization_endpoint);
-    return_value = get_input("After logging in paste \"code\" from the redirect URI query params here\n", max_input_len, &redirect_code);
+    return_value = get_input("After logging in paste \"code\" from the redirect URI query params here\n", max_input_len,
+                             &redirect_code);
 
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read code from input\n");
@@ -250,7 +254,6 @@ int authorize_application(char **redirect_code_out) {
 
 cleanup:
     free(authorization_endpoint);
-
     return return_value;
 }
 
@@ -359,9 +362,8 @@ cleanup:
 
 int parse_artist(cJSON *item, artist *artist) {
     cJSON *name = cJSON_GetObjectItem(item, "name");
-    if (!cJSON_IsString(name)) {
+    if (!cJSON_IsString(name))
         return STATUS_ERROR;
-    }
 
     snprintf(artist->name, sizeof(artist->name), "%s", name->valuestring);
     return STATUS_SUCCESS;
@@ -369,6 +371,7 @@ int parse_artist(cJSON *item, artist *artist) {
 
 int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
     cJSON *items = NULL;
+    artist *artists = NULL;
 
     int return_value = parse_items_array(input, &items);
     if (return_value != STATUS_SUCCESS) {
@@ -378,7 +381,7 @@ int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
 
     int count = cJSON_GetArraySize(items);
 
-    artist *artists = malloc(count * sizeof(artist));
+    artists = malloc(count * sizeof(artist));
     if (artists == NULL) {
         perror("malloc");
         goto cleanup;
@@ -387,10 +390,9 @@ int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
     cJSON *item = NULL;
     int i = 0;
     cJSON_ArrayForEach(item, items) {
-        if (parse_artist(item, &artists[i]) != STATUS_SUCCESS) {
-            free(artists);
+        if (parse_artist(item, &artists[i]) != STATUS_SUCCESS)
             goto cleanup;
-        }
+
         i++;
     }
 
@@ -400,6 +402,9 @@ int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
 
 cleanup:
     cJSON_Delete(items);
+    if (return_value != STATUS_SUCCESS)
+        free(artists);
+
     return return_value;
 }
 
@@ -407,9 +412,8 @@ int parse_song(cJSON *item, song *song) {
     cJSON *name = cJSON_GetObjectItem(item, "name");
     cJSON *artists = cJSON_GetObjectItem(item, "artists");
 
-    if (!cJSON_IsString(name) || !cJSON_IsArray(artists)) {
+    if (!cJSON_IsString(name) || !cJSON_IsArray(artists))
         return STATUS_ERROR;
-    }
 
     snprintf(song->name, sizeof(song->name), "%s", name->valuestring);
 
@@ -421,9 +425,8 @@ int parse_song(cJSON *item, song *song) {
     cJSON_ArrayForEach(artist, artists) {
         cJSON *artist_name = cJSON_GetObjectItem(artist, "name");
 
-        if (!cJSON_IsString(artist_name)) {
+        if (!cJSON_IsString(artist_name))
             return STATUS_ERROR;
-        }
 
         pos += snprintf(song->artist + pos, sizeof(song->artist) - pos, "%s%s", artist_name->valuestring,
                         (i < artists_len - 1) ? ", " : "");
@@ -436,6 +439,7 @@ int parse_song(cJSON *item, song *song) {
 
 int parse_songs(char *input, song **songs_out, int *songs_len_out) {
     cJSON *items = NULL;
+    song *songs = NULL;
 
     int return_value = parse_items_array(input, &items);
     if (return_value != STATUS_SUCCESS) {
@@ -445,7 +449,7 @@ int parse_songs(char *input, song **songs_out, int *songs_len_out) {
 
     int count = cJSON_GetArraySize(items);
 
-    song *songs = malloc(count * sizeof(song));
+    songs = malloc(count * sizeof(song));
     if (songs == NULL) {
         perror("malloc");
         goto cleanup;
@@ -454,10 +458,8 @@ int parse_songs(char *input, song **songs_out, int *songs_len_out) {
     cJSON *item = NULL;
     int i = 0;
     cJSON_ArrayForEach(item, items) {
-        if (parse_song(item, &songs[i]) != STATUS_SUCCESS) {
-            free(songs);
+        if (parse_song(item, &songs[i]) != STATUS_SUCCESS)
             goto cleanup;
-        }
 
         i++;
     }
@@ -468,6 +470,9 @@ int parse_songs(char *input, song **songs_out, int *songs_len_out) {
 
 cleanup:
     cJSON_Delete(items);
+    if (return_value != STATUS_SUCCESS)
+        free(songs);
+
     return return_value;
 }
 
