@@ -143,7 +143,7 @@ cleanup:
     if (file)
         fclose(file);
 
-    return STATUS_SUCCESS;
+    return return_value;
 }
 
 int write_file_overwrite(char *file_path, char *file_content) {

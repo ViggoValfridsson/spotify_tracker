@@ -211,7 +211,7 @@ int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out)
     return_value = http_request(endpoint, headers, NULL, "GET", &response);
     // File was not found, this is not an error
     if (return_value == STATUS_NETWORK_NOT_FOUND_ERROR) {
-        sha_out = NULL;
+        *sha_out = NULL;
         return_value = STATUS_SUCCESS;
         goto cleanup;
     } else if (return_value != STATUS_SUCCESS) {

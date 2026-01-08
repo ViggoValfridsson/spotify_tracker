@@ -118,7 +118,7 @@ cleanup:
     if (return_value != STATUS_SUCCESS)
         free(content);
 
-    return STATUS_SUCCESS;
+    return return_value;
 }
 
 int post_artists_to_github() {
