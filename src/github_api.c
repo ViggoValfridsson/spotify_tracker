@@ -22,11 +22,13 @@ typedef struct {
 } github_config;
 
 int parse_config_json(char *file_content, github_config **config_out) {
-    cJSON *json = cJSON_Parse(file_content);
+    cJSON *json = NULL;
+    int return_value = STATUS_ERROR;
 
+    json = cJSON_Parse(file_content);
     if (!json) {
         fprintf(stderr, "File did not contain valid JSON\n");
-        return STATUS_FILE_ERROR;
+        goto cleanup;
     }
 
     cJSON *repo_owner = cJSON_GetObjectItemCaseSensitive(json, "repoOwner");
@@ -37,17 +39,13 @@ int parse_config_json(char *file_content, github_config **config_out) {
     cJSON *pat = cJSON_GetObjectItemCaseSensitive(json, "pat");
 
     if (!cJSON_IsString(repo_owner) || !cJSON_IsString(repo_name) || !cJSON_IsString(file_name) ||
-        !cJSON_IsString(committer) || !cJSON_IsString(email) || !cJSON_IsString(pat)) {
-        cJSON_Delete(json);
-        return STATUS_FILE_ERROR;
-    }
+        !cJSON_IsString(committer) || !cJSON_IsString(email) || !cJSON_IsString(pat))
+        goto cleanup;
 
     github_config *config = malloc(sizeof(github_config));
-
     if (config == NULL) {
-        cJSON_Delete(json);
         perror("malloc");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     snprintf(config->repo_owner, sizeof(config->repo_owner), "%s", repo_owner->valuestring);
@@ -58,7 +56,14 @@ int parse_config_json(char *file_content, github_config **config_out) {
     snprintf(config->pat, sizeof(config->pat), "%s", pat->valuestring);
 
     *config_out = config;
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    cJSON_Delete(json);
+    if (return_value != STATUS_SUCCESS)
+        free(config);
+
+    return return_value;
 }
 
 int read_github_config_file(char *file_path, github_config **config_out) {
