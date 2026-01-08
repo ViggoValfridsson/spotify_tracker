@@ -37,9 +37,10 @@ int parse_credentials_json(char *file_content, client_credentials **credentials_
         goto cleanup;
 
     client_credentials *credentials = malloc(sizeof(client_credentials));
-
-    if (credentials == NULL)
+    if (credentials == NULL) {
+        perror("malloc");
         goto cleanup;
+    }
 
     snprintf(credentials->client_id, sizeof(credentials->client_id), "%s", client_id->valuestring);
     snprintf(credentials->client_secret, sizeof(credentials->client_secret), "%s", client_secret->valuestring);
