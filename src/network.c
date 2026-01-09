@@ -121,7 +121,6 @@ int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **
 
     size_t real_size = encoded_size + 1;
     body = malloc(real_size);
-
     if (!body) {
         perror("malloc");
         return_value = STATUS_ERROR;
