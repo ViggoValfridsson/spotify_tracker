@@ -22,6 +22,7 @@
 
 int parse_credentials_json(char *file_content, client_credentials **credentials_out) {
     cJSON *json = NULL;
+    client_credentials *credentials = NULL;
     int return_value = STATUS_ERROR;
 
     json = cJSON_Parse(file_content);
@@ -36,7 +37,7 @@ int parse_credentials_json(char *file_content, client_credentials **credentials_
     if (!cJSON_IsString(client_id) || !cJSON_IsString(client_secret))
         goto cleanup;
 
-    client_credentials *credentials = malloc(sizeof(client_credentials));
+    credentials = malloc(sizeof(client_credentials));
     if (credentials == NULL) {
         perror("malloc");
         goto cleanup;
@@ -46,10 +47,13 @@ int parse_credentials_json(char *file_content, client_credentials **credentials_
     snprintf(credentials->client_secret, sizeof(credentials->client_secret), "%s", client_secret->valuestring);
 
     *credentials_out = credentials;
+    credentials = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(json);
+    free(credentials);
 
     return return_value;
     return STATUS_SUCCESS;
@@ -68,10 +72,14 @@ int read_spotify_credentials_file(char *credentials_file_path, client_credential
         goto cleanup;
 
     *credentials_out = credentials;
+    credentials = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(file_content);
+    free(credentials);
+
     return return_value;
 }
 
@@ -98,12 +106,13 @@ int get_access_token_header(struct curl_slist **header_out) {
     }
 
     *header_out = header;
+    header = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(credentials);
-    if (return_value != STATUS_SUCCESS)
-        curl_slist_free_all(header);
+    curl_slist_free_all(header);
 
     return return_value;
 }
@@ -132,10 +141,13 @@ int get_access_token(char *body, access_token **token_out) {
     }
 
     *token_out = token;
+    token = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(response);
+    free(token);
     curl_slist_free_all(header);
 
     return return_value;
@@ -162,10 +174,14 @@ int get_access_token_from_authorization_code(char *redirect_code, access_token *
         goto cleanup;
 
     *token_out = token;
+    token = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(body);
+    free(token);
+
     return return_value;
 }
 
@@ -189,15 +205,20 @@ int get_access_token_from_refresh_token(char *refresh_token, access_token **toke
         goto cleanup;
 
     *token_out = token;
+    token = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(body);
+    free(token);
+
     return return_value;
 }
 
 int create_authorization_endpoint(char **endpoint_out) {
     client_credentials *credentials = NULL;
+    char *endpoint = NULL;
 
     int return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
     if (return_value != STATUS_SUCCESS) {
@@ -214,17 +235,19 @@ int create_authorization_endpoint(char **endpoint_out) {
     snprintf(query_parameters[0].value, sizeof(query_parameters[0].value), "%s", credentials->client_id);
 
     int parameters_len = sizeof(query_parameters) / sizeof(query_parameters[0]);
-    char *endpoint;
 
     return_value = append_query_params(AUTHORIZE_ENDPOINT_BASE, query_parameters, parameters_len, &endpoint);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
     *endpoint_out = endpoint;
+    endpoint = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(credentials);
+    free(endpoint);
 
     return return_value;
 }
@@ -251,10 +274,14 @@ int authorize_application(char **redirect_code_out) {
     }
 
     *redirect_code_out = redirect_code;
+    redirect_code = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(authorization_endpoint);
+    free(redirect_code);
+
     return return_value;
 }
 
@@ -306,15 +333,20 @@ int refresh_access_token(access_token **access_token_out) {
     }
 
     *access_token_out = token;
+    token = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(refresh_token);
+    free(token);
+
     return return_value;
 }
 
 int spotify_get(char *url, access_token *access_token, char **response_out) {
     struct curl_slist *header = NULL;
+    char *response = NULL;
 
     int return_value = append_header("Authorization: Bearer ", access_token->access_token, &header);
     if (return_value != STATUS_SUCCESS) {
@@ -322,7 +354,7 @@ int spotify_get(char *url, access_token *access_token, char **response_out) {
         goto cleanup;
     }
 
-    char *response = NULL;
+    response = NULL;
     return_value = http_request(url, header, NULL, "GET", &response);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Request to spotify API failed\n");
@@ -330,16 +362,21 @@ int spotify_get(char *url, access_token *access_token, char **response_out) {
     }
 
     *response_out = response;
+    response = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     curl_slist_free_all(header);
+    free(response);
+
     return return_value;
 }
 
 int parse_items_array(char *input, cJSON **items_out) {
     cJSON *json = NULL;
     int return_value = STATUS_ERROR;
+    cJSON *items = NULL;
 
     json = cJSON_Parse(input);
     if (!json) {
@@ -347,17 +384,21 @@ int parse_items_array(char *input, cJSON **items_out) {
         goto cleanup;
     }
 
-    cJSON *items = cJSON_DetachItemFromObject(json, "items");
+    items = cJSON_DetachItemFromObject(json, "items");
     if (!items || !cJSON_IsArray(items)) {
         fprintf(stderr, "Expected 'items' array\n");
         goto cleanup;
     }
 
     *items_out = items;
+    items = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(json);
+    cJSON_Delete(items);
+
     return return_value;
 }
 
@@ -381,7 +422,6 @@ int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
     }
 
     int count = cJSON_GetArraySize(items);
-
     artists = malloc(count * sizeof(artist));
     if (artists == NULL) {
         perror("malloc");
@@ -399,12 +439,13 @@ int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
 
     *artists_out = artists;
     *artists_len_out = count;
+    artists = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(items);
-    if (return_value != STATUS_SUCCESS)
-        free(artists);
+    free(artists);
 
     return return_value;
 }
@@ -467,26 +508,26 @@ int parse_songs(char *input, song **songs_out, int *songs_len_out) {
 
     *songs_out = songs;
     *songs_len_out = count;
+    songs = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(items);
-    if (return_value != STATUS_SUCCESS)
-        free(songs);
+    free(songs);
 
     return return_value;
 }
 
 int get_top_artists(access_token *access_token, artist **artists_out, int *artists_len_out) {
     char *response = NULL;
+    artist *artists = NULL;
 
     int return_value = spotify_get(TOP_ARTISTS_ENDPOINT, access_token, &response);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
-    artist *artists = NULL;
     int artists_len;
-
     return_value = parse_artists(response, &artists, &artists_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to parse response from spotify API\n");
@@ -495,21 +536,24 @@ int get_top_artists(access_token *access_token, artist **artists_out, int *artis
 
     *artists_out = artists;
     *artists_len_out = artists_len;
+    artists = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
+    free(artists);
     free(response);
     return return_value;
 }
 
 int get_top_songs(access_token *access_token, song **songs_out, int *songs_len_out) {
     char *response = NULL;
+    song *songs = NULL;
 
     int return_value = spotify_get(TOP_TRACKS_ENDPOINT, access_token, &response);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
-    song *songs = NULL;
     int songs_len;
 
     return_value = parse_songs(response, &songs, &songs_len);
@@ -520,9 +564,13 @@ int get_top_songs(access_token *access_token, song **songs_out, int *songs_len_o
 
     *songs_out = songs;
     *songs_len_out = songs_len;
+    songs = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(response);
+    free(songs);
+
     return return_value;
 }

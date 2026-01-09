@@ -5,6 +5,8 @@
 #include <string.h>
 
 int get_input(const char *prompt, size_t max_len, char **input_out) {
+    int return_value = STATUS_ERROR;
+
     if (max_len == 0)
         return STATUS_ERROR;
 
@@ -14,12 +16,12 @@ int get_input(const char *prompt, size_t max_len, char **input_out) {
     char *input = malloc(max_len + 1);
     if (!input) {
         perror("malloc");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     if (fgets(input, max_len + 1, stdin) == NULL) {
-        free(input);
-        return STATUS_ERROR;
+        perror("fgets");
+        goto cleanup;
     }
 
     // Trim trailing newline
@@ -30,5 +32,10 @@ int get_input(const char *prompt, size_t max_len, char **input_out) {
     }
 
     *input_out = input;
-    return STATUS_SUCCESS;
+    input = NULL;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(input);
+    return return_value;
 }

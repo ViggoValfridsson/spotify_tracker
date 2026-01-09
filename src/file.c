@@ -21,38 +21,41 @@ void print_fopen_error() {
 
 // Expand ~ to actual home directory path
 int expand_file_name(char *file_name, char **resolved_name_out) {
-    char *resolved_name = malloc(MAX_FILE_PATH);
+    int return_value = STATUS_ERROR;
 
+    char *resolved_name = malloc(MAX_FILE_PATH);
     if (!resolved_name)
-        return STATUS_ERROR;
+        goto cleanup;
 
     if (file_name[0] != '~') {
         strncpy(resolved_name, file_name, MAX_FILE_PATH - 1);
     } else {
         char *home = getenv("HOME");
-
         if (!home) {
             fprintf(stderr, "Home directory environment variable not set\n");
-            free(resolved_name);
-            return STATUS_ERROR;
+            goto cleanup;
         }
 
         int result = snprintf(resolved_name, MAX_FILE_PATH, "%s%s", home, file_name + 1);
 
         if (result >= MAX_FILE_PATH) {
             fprintf(stderr, "Credentials file path is too long. Max path length is %d\n", MAX_FILE_PATH);
-            free(resolved_name);
-            return STATUS_ERROR;
+            goto cleanup;
         }
         if (result < 0) {
             perror("snprintf");
-            free(resolved_name);
-            return STATUS_ERROR;
+            goto cleanup;
         }
     }
 
     *resolved_name_out = resolved_name;
-    return STATUS_SUCCESS;
+    resolved_name = NULL;
+
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(resolved_name);
+    return return_value;
 }
 
 int open_file(char *file_name, char *open_mode, FILE **file_out) {
@@ -100,23 +103,30 @@ int get_file_size(FILE *file, long *size_out) {
 }
 
 int read_file(FILE *file, long size, char **data_out) {
-    char *data = malloc(size + 1);
+    int return_value = STATUS_ERROR;
+    char *data = NULL;
 
+    data = malloc(size + 1);
     if (data == NULL) {
         perror("malloc");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     if (fread(data, 1, size, file) == 0 && ferror(file) != 0) {
-        free(data);
         perror("fread");
-        return STATUS_FILE_ERROR;
+        goto cleanup;
     }
 
     data[size] = '\0';
-    *data_out = data;
 
-    return STATUS_SUCCESS;
+    *data_out = data;
+    data = NULL;
+
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(data);
+    return return_value;
 }
 
 int read_file_content(char *file_path, char **file_content_out) {
@@ -147,19 +157,24 @@ cleanup:
 }
 
 int write_file_overwrite(char *file_path, char *file_content) {
-    FILE *file = NULL;
+    int return_value = STATUS_ERROR;
 
+    FILE *file = NULL;
     if (open_file(file_path, "w", &file) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to open refresh token file");
-        return STATUS_FILE_ERROR;
+        goto cleanup;
     }
 
     if (fprintf(file, "%s", file_content) < 0) {
         fprintf(stderr, "Failed to write to refresh token file");
-        fclose(file);
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
-    fclose(file);
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    if (file)
+        fclose(file);
+
+    return return_value;
 }

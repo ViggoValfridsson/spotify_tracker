@@ -6,17 +6,17 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 int base64_encode(char *input, int input_len, char **base64_out, int *size_out) {
+    int return_value = STATUS_ERROR;
     base64_encodestate state;
     base64_init_encodestate(&state);
     int max_size = (input_len * 2) + 4;
-    char *output = malloc(max_size);
 
+    char *output = malloc(max_size);
     if (!output) {
         perror("malloc");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     int count = base64_encode_block(input, input_len, output, &state);
@@ -26,18 +26,23 @@ int base64_encode(char *input, int input_len, char **base64_out, int *size_out) 
 
     *base64_out = output;
     *size_out = count + 1;
+    output = NULL;
 
-    return STATUS_SUCCESS;
+    return_value = STATUS_SUCCESS;
+
+cleanup:
+    free(output);
+    return return_value;
 }
 
 int url_encode(char *input, int input_len, char **url_encode_out) {
     int max_size = input_len * 3 + 1;
-    char *result = malloc(max_size);
     int result_index = 0;
 
+    char *result = malloc(max_size);
     if (!result) {
         perror("malloc");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     for (int i = 0; i < input_len; i++) {
@@ -57,6 +62,9 @@ int url_encode(char *input, int input_len, char **url_encode_out) {
 
     result[result_index] = '\0';
     *url_encode_out = result;
+    result = NULL;
 
+cleanup:
+    free(result);
     return STATUS_SUCCESS;
 }

@@ -91,7 +91,7 @@ int format_file(artist *artists, int artists_len, song *songs, int songs_len, ch
     int return_value = STATUS_ERROR;
 
     content = malloc(current_size);
-    if (!content){
+    if (!content) {
         perror("malloc");
         goto cleanup;
     }
@@ -112,11 +112,12 @@ int format_file(artist *artists, int artists_len, song *songs, int songs_len, ch
         goto cleanup;
 
     *file_content_out = content;
+    content = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    if (return_value != STATUS_SUCCESS)
-        free(content);
+    free(content);
 
     return return_value;
 }

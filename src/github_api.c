@@ -22,6 +22,7 @@ typedef struct {
 } github_config;
 
 int parse_config_json(char *file_content, github_config **config_out) {
+    github_config *config = NULL;
     cJSON *json = NULL;
     int return_value = STATUS_ERROR;
 
@@ -42,7 +43,7 @@ int parse_config_json(char *file_content, github_config **config_out) {
         !cJSON_IsString(committer) || !cJSON_IsString(email) || !cJSON_IsString(pat))
         goto cleanup;
 
-    github_config *config = malloc(sizeof(github_config));
+    config = malloc(sizeof(github_config));
     if (config == NULL) {
         perror("malloc");
         goto cleanup;
@@ -56,43 +57,49 @@ int parse_config_json(char *file_content, github_config **config_out) {
     snprintf(config->pat, sizeof(config->pat), "%s", pat->valuestring);
 
     *config_out = config;
+    config = NULL;
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(json);
-    if (return_value != STATUS_SUCCESS)
-        free(config);
+    free(config);
 
     return return_value;
 }
 
 int read_github_config_file(char *file_path, github_config **config_out) {
     char *file_content = NULL;
+    github_config *config = NULL;
 
     int return_value = read_file_content(file_path, &file_content);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
-
-    github_config *config;
 
     return_value = parse_config_json(file_content, &config);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
     *config_out = config;
+    config = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(file_content);
+    free(config);
+
     return return_value;
 }
 
 int create_update_file_body(char *message, char *committer_name, char *committer_email, char *sha, char *content,
                             char **json_out) {
+    char *json_string = NULL;
     char *base64_content = NULL;
     int return_value = STATUS_ERROR;
+    cJSON *root = NULL;
+    cJSON *commiter = NULL;
 
-    cJSON *root = cJSON_CreateObject();
+    root = cJSON_CreateObject();
     if (!root)
         goto cleanup;
 
@@ -111,6 +118,7 @@ int create_update_file_body(char *message, char *committer_name, char *committer
 
     if (!cJSON_AddItemToObject(root, "committer", committer))
         goto cleanup;
+    committer = NULL;
 
     if (sha && !cJSON_AddStringToObject(root, "sha", sha))
         goto cleanup;
@@ -124,22 +132,26 @@ int create_update_file_body(char *message, char *committer_name, char *committer
     if (!cJSON_AddStringToObject(root, "content", base64_content))
         goto cleanup;
 
-    char *json_string = cJSON_Print(root);
+    json_string = cJSON_Print(root);
     if (!json_string)
         goto cleanup;
 
     *json_out = json_string;
+    json_string = NULL;
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(base64_content);
+    cJSON_Delete(commiter);
     cJSON_Delete(root);
+    free(json_string);
 
     return return_value;
 }
 
 int parse_file_json(char *input, char **sha_out) {
     cJSON *json = cJSON_Parse(input);
+    char *sha = NULL;
     int return_value = STATUS_ERROR;
 
     if (!json) {
@@ -152,7 +164,7 @@ int parse_file_json(char *input, char **sha_out) {
         goto cleanup;
 
     int sha_len = strlen(sha_json->valuestring) + 1;
-    char *sha = malloc(sha_len);
+    sha = malloc(sha_len);
     if (sha == NULL) {
         perror("malloc");
         goto cleanup;
@@ -161,10 +173,14 @@ int parse_file_json(char *input, char **sha_out) {
     snprintf(sha, sha_len, "%s", sha_json->valuestring);
 
     *sha_out = sha;
+    sha = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(json);
+    free(sha);
+
     return return_value;
 }
 
@@ -190,18 +206,19 @@ int get_existing_file_sha_headers(github_config *config, struct curl_slist **hea
     }
 
     *headers_out = headers;
+    headers = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    if (return_value != STATUS_SUCCESS)
-        curl_slist_free_all(headers);
+    curl_slist_free_all(headers);
 
     return return_value;
 }
 
 int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out) {
     struct curl_slist *headers = NULL;
-    char *sha;
+    char *sha = NULL;
     char *response = NULL;
 
     int return_value = get_existing_file_sha_headers(config, &headers);
@@ -226,10 +243,12 @@ int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out)
     }
 
     *sha_out = sha;
+    sha = NULL;
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(response);
+    free(sha);
     curl_slist_free_all(headers);
 
     return return_value;
@@ -257,11 +276,12 @@ int get_update_file_content_headers(github_config *config, struct curl_slist **h
     }
 
     *headers_out = headers;
+    headers = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
-    if (return_value != STATUS_SUCCESS)
-        curl_slist_free_all(headers);
+    curl_slist_free_all(headers);
 
     return return_value;
 }

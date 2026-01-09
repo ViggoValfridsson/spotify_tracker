@@ -22,24 +22,30 @@ typedef struct {
 } response_chunks;
 
 int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out, int *encoded_len_out) {
-    char *encoded_key;
-    char *encoded_value;
+    char *encoded_key = NULL;
+    char *encoded_value = NULL;
     int key_len = strlen(kvp->key);
     int value_len = strlen(kvp->value);
 
     if (url_encode(kvp->key, key_len, &encoded_key) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to url encode key\n");
-        return STATUS_ERROR;
+        goto cleanup;
     }
     if (url_encode(kvp->value, value_len, &encoded_value) != STATUS_SUCCESS) {
-        free(encoded_key);
         fprintf(stderr, "Failed to url encode value\n");
-        return STATUS_ERROR;
+        goto cleanup;
     }
 
     *key_out = encoded_key;
     *value_out = encoded_value;
     *encoded_len_out = strlen(encoded_key) + strlen(encoded_value);
+
+    encoded_key = NULL;
+    encoded_value = NULL;
+
+cleanup:
+    free(encoded_key);
+    free(encoded_value);
 
     return STATUS_SUCCESS;
 }
@@ -66,7 +72,7 @@ int url_encode_kvps(form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_o
     for (int i = 0; i < kvp_len; i++) {
         int len;
         if (url_encode_kvp(&kvps[i], &encoded_kvps[i].key, &encoded_kvps[i].value, &len) != STATUS_SUCCESS) {
-            // cleanup previous iterations
+            // Cleanup previous iterations
             cleanup_encoded_kvps(encoded_kvps, i);
             return STATUS_ERROR;
         }
@@ -106,14 +112,15 @@ void write_encoded_kvps_to_body(char *body, encoded_kvp *encoded_kvps, int kvp_l
 
 int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
     encoded_kvp *encoded_kvps = NULL;
-    size_t encoded_size;
+    char *body = NULL;
 
+    size_t encoded_size;
     int return_value = url_encode_kvps(kvps, kvp_len, &encoded_kvps, &encoded_size);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
     size_t real_size = encoded_size + 1;
-    char *body = malloc(real_size);
+    body = malloc(real_size);
 
     if (!body) {
         perror("malloc");
@@ -125,18 +132,22 @@ int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **
 
     *body_out = body;
     *size_out = real_size;
+    body = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
+    free(body);
     cleanup_encoded_kvps(encoded_kvps, kvp_len);
 
     return return_value;
 }
 
 int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len, char **endpoint_out) {
-    size_t encoded_params_len;
     char *encoded_parameters = NULL;
+    char *endpoint = NULL;
 
+    size_t encoded_params_len;
     int return_value =
         create_form_url_encoded_kvps(parameters, parameter_len, &encoded_parameters, &encoded_params_len);
     if (return_value != STATUS_SUCCESS)
@@ -144,17 +155,21 @@ int append_query_params(char *base_url, form_key_value_pair *parameters, int par
 
     // + 1 to account for ? separator before appending query params
     int endpoint_len = strlen(base_url) + 1 + encoded_params_len;
-    char *endpoint = malloc(endpoint_len);
+    endpoint = malloc(endpoint_len);
     if (!endpoint)
         goto cleanup;
 
     snprintf(endpoint, endpoint_len, "%s?%s", base_url, encoded_parameters);
 
     *endpoint_out = endpoint;
+    endpoint = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(encoded_parameters);
+    free(endpoint);
+
     return return_value;
 }
 
@@ -162,9 +177,10 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
     char credentials[CREDENTIALS_MAX];
     char *basic_header = NULL;
     char *base64_credentials = NULL;
-    int snprint_res = snprintf(credentials, sizeof(credentials), "%s:%s", username, password);
+    struct curl_slist *header = NULL;
     int return_value = STATUS_ERROR;
 
+    int snprint_res = snprintf(credentials, sizeof(credentials), "%s:%s", username, password);
     if (snprint_res >= CREDENTIALS_MAX) {
         fprintf(stderr, "Credentials are too long. Max length of password and username combined is %d\n",
                 CREDENTIALS_MAX);
@@ -195,7 +211,7 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
         goto cleanup;
     }
 
-    struct curl_slist *header = curl_slist_append(*header_out, basic_header);
+    header = curl_slist_append(*header_out, basic_header);
     if (!header) {
         fprintf(stderr, "Failed to append header\n");
         return_value = STATUS_ERROR;
@@ -203,22 +219,27 @@ int append_basic_header(char *username, char *password, struct curl_slist **head
     }
 
     *header_out = header;
+    header = NULL;
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(base64_credentials);
     free(basic_header);
+    curl_slist_free_all(header);
 
     return return_value;
 }
 
 int append_header(char *prefix, char *value, struct curl_slist **header_out) {
+    struct curl_slist *header = NULL;
+    char *header_value = NULL;
     int return_value = STATUS_ERROR;
+
     int prefix_len = strlen(prefix);
     int value_len = strlen(value);
     int total_size = prefix_len + value_len + 1;
 
-    char *header_value = malloc(total_size);
+    header_value = malloc(total_size);
     if (!header_value) {
         perror("malloc");
         goto cleanup;
@@ -229,17 +250,20 @@ int append_header(char *prefix, char *value, struct curl_slist **header_out) {
         goto cleanup;
     }
 
-    struct curl_slist *header = curl_slist_append(*header_out, header_value);
+    header = curl_slist_append(*header_out, header_value);
     if (!header) {
         fprintf(stderr, "Failed to append header\n");
         goto cleanup;
     }
 
     *header_out = header;
+    header = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     free(header_value);
+    curl_slist_free_all(header);
     return return_value;
 }
 
@@ -321,6 +345,7 @@ int http_request(char *url, struct curl_slist *headers, const char *body, char *
 
 int parse_token_response(char *input, access_token **token_out) {
     cJSON *json = NULL;
+    struct access_token *token = NULL;
     int return_value = STATUS_ERROR;
 
     json = cJSON_Parse(input);
@@ -339,7 +364,7 @@ int parse_token_response(char *input, access_token **token_out) {
         goto cleanup;
     }
 
-    struct access_token *token = calloc(1, sizeof(struct access_token));
+    token = calloc(1, sizeof(struct access_token));
     if (token == NULL) {
         perror("calloc");
         goto cleanup;
@@ -353,9 +378,13 @@ int parse_token_response(char *input, access_token **token_out) {
         snprintf(token->refresh_token, sizeof(token->refresh_token), "%s", refresh_token->valuestring);
 
     *token_out = token;
+    token = NULL;
+
     return_value = STATUS_SUCCESS;
 
 cleanup:
     cJSON_Delete(json);
+    free(token);
+
     return return_value;
 }
