@@ -41,6 +41,7 @@
 *.su
 *.idb
 *.pdb
+vgcore.*
 gdb.txt
 
 # Kernel Module Compile Results
