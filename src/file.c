@@ -107,7 +107,7 @@ int read_file(FILE *file, long size, char **data_out) {
     char *data = NULL;
 
     data = malloc(size + 1);
-    if (data == NULL) {
+    if (!data) {
         perror("malloc");
         goto cleanup;
     }

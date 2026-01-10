@@ -364,7 +364,7 @@ int parse_token_response(char *input, access_token **token_out) {
     }
 
     token = calloc(1, sizeof(struct access_token));
-    if (token == NULL) {
+    if (!token) {
         perror("calloc");
         goto cleanup;
     }

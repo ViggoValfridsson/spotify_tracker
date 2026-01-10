@@ -44,7 +44,7 @@ int parse_config_json(char *file_content, github_config **config_out) {
         goto cleanup;
 
     config = malloc(sizeof(github_config));
-    if (config == NULL) {
+    if (!config) {
         perror("malloc");
         goto cleanup;
     }
@@ -165,7 +165,7 @@ int parse_file_json(char *input, char **sha_out) {
 
     int sha_len = strlen(sha_json->valuestring) + 1;
     sha = malloc(sha_len);
-    if (sha == NULL) {
+    if (!sha) {
         perror("malloc");
         goto cleanup;
     }

@@ -99,13 +99,13 @@ int get_current_datetime(char **current_time_out) {
     }
 
     struct tm *current_time = localtime(&tmp_time);
-    if (current_time == NULL) {
+    if (!current_time) {
         perror("localtime");
         goto cleanup;
     }
 
     formatted_time = malloc(TIME_STRING_MAX_SIZE);
-    if (formatted_time == NULL) {
+    if (!formatted_time) {
         perror("malloc");
         goto cleanup;
     }
@@ -156,7 +156,8 @@ int format_file(artist *artists, int artists_len, song *songs, int songs_len, ch
     if (format_song_stats(content, current_size, pos, songs, songs_len, &current_size, &pos))
         goto cleanup;
 
-    if (append_string("\n*Data last updated at ", content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS)
+    if (append_string("\n*Data last updated at ", content, current_size, pos, &pos, &current_size, &content) !=
+        STATUS_SUCCESS)
         goto cleanup;
 
     if (append_string(current_time, content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS)

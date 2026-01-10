@@ -38,7 +38,7 @@ int parse_credentials_json(char *file_content, client_credentials **credentials_
         goto cleanup;
 
     credentials = malloc(sizeof(client_credentials));
-    if (credentials == NULL) {
+    if (!credentials) {
         perror("malloc");
         goto cleanup;
     }
@@ -423,7 +423,7 @@ int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
 
     int count = cJSON_GetArraySize(items);
     artists = malloc(count * sizeof(artist));
-    if (artists == NULL) {
+    if (!artists) {
         perror("malloc");
         goto cleanup;
     }
@@ -492,7 +492,7 @@ int parse_songs(char *input, song **songs_out, int *songs_len_out) {
     int count = cJSON_GetArraySize(items);
 
     songs = malloc(count * sizeof(song));
-    if (songs == NULL) {
+    if (!songs) {
         perror("malloc");
         goto cleanup;
     }
