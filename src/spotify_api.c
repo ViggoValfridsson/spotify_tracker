@@ -20,7 +20,7 @@
 #define TOP_TRACKS_ENDPOINT "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5&offset=0"
 #define REDIRECT_URI "https://httpbin.org/anything"
 
-int parse_credentials_json(char *file_content, client_credentials **credentials_out) {
+int parse_credentials_json(const char *file_content, client_credentials **credentials_out) {
     cJSON *json = NULL;
     client_credentials *credentials = NULL;
     int return_value = STATUS_ERROR;
@@ -56,10 +56,9 @@ cleanup:
     free(credentials);
 
     return return_value;
-    return STATUS_SUCCESS;
 }
 
-int read_spotify_credentials_file(char *credentials_file_path, client_credentials **credentials_out) {
+int read_spotify_credentials_file(const char *credentials_file_path, client_credentials **credentials_out) {
     client_credentials *credentials = NULL;
     char *file_content = NULL;
 
@@ -117,7 +116,7 @@ cleanup:
     return return_value;
 }
 
-int get_access_token(char *body, access_token **token_out) {
+int get_access_token(const char *body, access_token **token_out) {
     struct curl_slist *header = NULL;
     char *response = NULL;
     access_token *token = NULL;
@@ -153,7 +152,7 @@ cleanup:
     return return_value;
 }
 
-int get_access_token_from_authorization_code(char *redirect_code, access_token **token_out) {
+int get_access_token_from_authorization_code(const char *redirect_code, access_token **token_out) {
     access_token *token = NULL;
     char *body = NULL;
 
@@ -185,7 +184,7 @@ cleanup:
     return return_value;
 }
 
-int get_access_token_from_refresh_token(char *refresh_token, access_token **token_out) {
+int get_access_token_from_refresh_token(const char *refresh_token, access_token **token_out) {
     access_token *token = NULL;
     char *body = NULL;
 
@@ -344,7 +343,7 @@ cleanup:
     return return_value;
 }
 
-int spotify_get(char *url, access_token *access_token, char **response_out) {
+int spotify_get(const char *url, const access_token *access_token, char **response_out) {
     struct curl_slist *header = NULL;
     char *response = NULL;
 
@@ -373,7 +372,7 @@ cleanup:
     return return_value;
 }
 
-int parse_items_array(char *input, cJSON **items_out) {
+int parse_items_array(const char *input, cJSON **items_out) {
     cJSON *json = NULL;
     int return_value = STATUS_ERROR;
     cJSON *items = NULL;
@@ -402,7 +401,7 @@ cleanup:
     return return_value;
 }
 
-int parse_artist(cJSON *item, artist *artist) {
+int parse_artist(const cJSON *item, artist *artist) {
     cJSON *name = cJSON_GetObjectItem(item, "name");
     if (!cJSON_IsString(name))
         return STATUS_ERROR;
@@ -411,7 +410,7 @@ int parse_artist(cJSON *item, artist *artist) {
     return STATUS_SUCCESS;
 }
 
-int parse_artists(char *input, artist **artists_out, int *artists_len_out) {
+int parse_artists(const char *input, artist **artists_out, int *artists_len_out) {
     cJSON *items = NULL;
     artist *artists = NULL;
 
@@ -450,7 +449,7 @@ cleanup:
     return return_value;
 }
 
-int parse_song(cJSON *item, song *song) {
+int parse_song(const cJSON *item, song *song) {
     cJSON *name = cJSON_GetObjectItem(item, "name");
     cJSON *artists = cJSON_GetObjectItem(item, "artists");
 
@@ -479,7 +478,7 @@ int parse_song(cJSON *item, song *song) {
     return STATUS_SUCCESS;
 }
 
-int parse_songs(char *input, song **songs_out, int *songs_len_out) {
+int parse_songs(const char *input, song **songs_out, int *songs_len_out) {
     cJSON *items = NULL;
     song *songs = NULL;
 
@@ -519,7 +518,7 @@ cleanup:
     return return_value;
 }
 
-int get_top_artists(access_token *access_token, artist **artists_out, int *artists_len_out) {
+int get_top_artists(const access_token *access_token, artist **artists_out, int *artists_len_out) {
     char *response = NULL;
     artist *artists = NULL;
 
@@ -546,7 +545,7 @@ cleanup:
     return return_value;
 }
 
-int get_top_songs(access_token *access_token, song **songs_out, int *songs_len_out) {
+int get_top_songs(const access_token *access_token, song **songs_out, int *songs_len_out) {
     char *response = NULL;
     song *songs = NULL;
 

@@ -21,11 +21,13 @@ typedef struct {
     size_t size;
 } response_chunks;
 
-int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out, int *encoded_len_out) {
+// encoded_len_out does not include =/&
+int url_encode_kvp(const form_key_value_pair *kvp, char **key_out, char **value_out, int *encoded_len_out) {
     char *encoded_key = NULL;
     char *encoded_value = NULL;
     int key_len = strlen(kvp->key);
     int value_len = strlen(kvp->value);
+    int return_value = STATUS_ERROR;
 
     if (url_encode(kvp->key, key_len, &encoded_key) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to url encode key\n");
@@ -43,14 +45,16 @@ int url_encode_kvp(form_key_value_pair *kvp, char **key_out, char **value_out, i
     encoded_key = NULL;
     encoded_value = NULL;
 
+    return_value = STATUS_SUCCESS;
+
 cleanup:
     free(encoded_key);
     free(encoded_value);
 
-    return STATUS_SUCCESS;
+    return return_value;
 }
 
-void cleanup_encoded_kvps(encoded_kvp *encoded_kvps, int len) {
+void free_encoded_kvps(encoded_kvp *encoded_kvps, int len) {
     if (!encoded_kvps)
         return;
 
@@ -62,7 +66,8 @@ void cleanup_encoded_kvps(encoded_kvp *encoded_kvps, int len) {
     free(encoded_kvps);
 }
 
-int url_encode_kvps(form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_out, size_t *encoded_size_out) {
+// Returned encoded_kvps have to be freed by calling free_encoded_kvps
+int url_encode_kvps(const form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_out, size_t *encoded_size_out) {
     size_t encoded_size = 0;
 
     encoded_kvp *encoded_kvps = malloc(sizeof(encoded_kvp) * kvp_len);
@@ -73,7 +78,7 @@ int url_encode_kvps(form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_o
         int len;
         if (url_encode_kvp(&kvps[i], &encoded_kvps[i].key, &encoded_kvps[i].value, &len) != STATUS_SUCCESS) {
             // Cleanup previous iterations
-            cleanup_encoded_kvps(encoded_kvps, i);
+            free_encoded_kvps(encoded_kvps, i);
             return STATUS_ERROR;
         }
 
@@ -87,7 +92,7 @@ int url_encode_kvps(form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_o
     return STATUS_SUCCESS;
 }
 
-void write_encoded_kvps_to_body(char *body, encoded_kvp *encoded_kvps, int kvp_len) {
+void write_encoded_kvps_to_body(char *body, const encoded_kvp *encoded_kvps, int kvp_len) {
     int position = 0;
 
     for (int i = 0; i < kvp_len; i++) {
@@ -110,7 +115,7 @@ void write_encoded_kvps_to_body(char *body, encoded_kvp *encoded_kvps, int kvp_l
     body[position] = '\0';
 }
 
-int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
+int create_form_url_encoded_kvps(const form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
     encoded_kvp *encoded_kvps = NULL;
     char *body = NULL;
 
@@ -137,12 +142,13 @@ int create_form_url_encoded_kvps(form_key_value_pair *kvps, int kvp_len, char **
 
 cleanup:
     free(body);
-    cleanup_encoded_kvps(encoded_kvps, kvp_len);
+    free_encoded_kvps(encoded_kvps, kvp_len);
 
     return return_value;
 }
 
-int append_query_params(char *base_url, form_key_value_pair *parameters, int parameter_len, char **endpoint_out) {
+int append_query_params(const char *base_url, const form_key_value_pair *parameters, int parameter_len,
+                        char **endpoint_out) {
     char *encoded_parameters = NULL;
     char *endpoint = NULL;
 
@@ -172,7 +178,7 @@ cleanup:
     return return_value;
 }
 
-int append_basic_header(char *username, char *password, struct curl_slist **header_out) {
+int append_basic_header(const char *username, const char *password, struct curl_slist **header_out) {
     char credentials[CREDENTIALS_MAX];
     char *basic_header = NULL;
     char *base64_credentials = NULL;
@@ -229,7 +235,7 @@ cleanup:
     return return_value;
 }
 
-int append_header(char *prefix, char *value, struct curl_slist **header_out) {
+int append_header(const char *prefix, const char *value, struct curl_slist **header_out) {
     struct curl_slist *header = NULL;
     char *header_value = NULL;
     int return_value = STATUS_ERROR;
@@ -281,7 +287,7 @@ int get_status(int http_code) {
         return STATUS_BAD_HTTP_CODE;
 }
 
-int read_response_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+size_t read_response_callback(void *contents, size_t size, size_t nmemb, void *userp) {
     size_t real_size = size * nmemb;
     response_chunks *chunks = (response_chunks *)userp;
 
@@ -298,7 +304,8 @@ int read_response_callback(void *contents, size_t size, size_t nmemb, void *user
     return real_size;
 }
 
-int http_request(char *url, struct curl_slist *headers, const char *body, char *method, char **response_out) {
+int http_request(const char *url, const struct curl_slist *headers, const char *body, const char *method,
+                 char **response_out) {
     CURL *curl = curl_easy_init();
     if (!curl) {
         fprintf(stderr, "Failed to initialize curl\n");
@@ -342,7 +349,7 @@ int http_request(char *url, struct curl_slist *headers, const char *body, char *
     return result == CURLE_OK ? get_status(http_code) : STATUS_NETWORK_ERROR;
 }
 
-int parse_token_response(char *input, access_token **token_out) {
+int parse_token_response(const char *input, access_token **token_out) {
     cJSON *json = NULL;
     struct access_token *token = NULL;
     int return_value = STATUS_ERROR;

@@ -20,7 +20,7 @@ void print_fopen_error() {
 }
 
 // Expand ~ to actual home directory path
-int expand_file_name(char *file_name, char **resolved_name_out) {
+int expand_file_name(const char *file_name, char **resolved_name_out) {
     int return_value = STATUS_ERROR;
 
     char *resolved_name = malloc(MAX_FILE_PATH);
@@ -58,7 +58,7 @@ cleanup:
     return return_value;
 }
 
-int open_file(char *file_name, char *open_mode, FILE **file_out) {
+int open_file(const char *file_name, const char *open_mode, FILE **file_out) {
     char *resolved_name = NULL;
     errno = 0;
 
@@ -129,7 +129,7 @@ cleanup:
     return return_value;
 }
 
-int read_file_content(char *file_path, char **file_content_out) {
+int read_file_content(const char *file_path, char **file_content_out) {
     FILE *file = NULL;
 
     int return_value = open_file(file_path, "r", &file);
@@ -156,7 +156,7 @@ cleanup:
     return return_value;
 }
 
-int write_file_overwrite(char *file_path, char *file_content) {
+int write_file_overwrite(const char *file_path, const char *file_content) {
     int return_value = STATUS_ERROR;
 
     FILE *file = NULL;

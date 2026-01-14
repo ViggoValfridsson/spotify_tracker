@@ -21,7 +21,7 @@ typedef struct {
     char pat[256];
 } github_config;
 
-int parse_config_json(char *file_content, github_config **config_out) {
+int parse_config_json(const char *file_content, github_config **config_out) {
     github_config *config = NULL;
     cJSON *json = NULL;
     int return_value = STATUS_ERROR;
@@ -67,7 +67,7 @@ cleanup:
     return return_value;
 }
 
-int read_github_config_file(char *file_path, github_config **config_out) {
+int read_github_config_file(const char *file_path, github_config **config_out) {
     char *file_content = NULL;
     github_config *config = NULL;
 
@@ -91,8 +91,8 @@ cleanup:
     return return_value;
 }
 
-int create_update_file_body(char *message, char *committer_name, char *committer_email, char *sha, char *content,
-                            char **json_out) {
+int create_update_file_body(const char *message, const char *committer_name, const char *committer_email,
+                            const char *sha, const char *content, char **json_out) {
     char *json_string = NULL;
     char *base64_content = NULL;
     int return_value = STATUS_ERROR;
@@ -149,7 +149,7 @@ cleanup:
     return return_value;
 }
 
-int parse_file_json(char *input, char **sha_out) {
+int parse_file_json(const char *input, char **sha_out) {
     cJSON *json = cJSON_Parse(input);
     char *sha = NULL;
     int return_value = STATUS_ERROR;
@@ -184,7 +184,7 @@ cleanup:
     return return_value;
 }
 
-int get_existing_file_sha_headers(github_config *config, struct curl_slist **headers_out) {
+int get_existing_file_sha_headers(const github_config *config, struct curl_slist **headers_out) {
     struct curl_slist *headers = NULL;
 
     int return_value = append_header("Accept: ", "application/vnd.github+json", &headers);
@@ -216,7 +216,7 @@ cleanup:
     return return_value;
 }
 
-int get_existing_file_sha(char *endpoint, github_config *config, char **sha_out) {
+int get_existing_file_sha(const char *endpoint, const github_config *config, char **sha_out) {
     struct curl_slist *headers = NULL;
     char *sha = NULL;
     char *response = NULL;
@@ -254,7 +254,7 @@ cleanup:
     return return_value;
 }
 
-int get_update_file_content_headers(github_config *config, struct curl_slist **headers_out) {
+int get_update_file_content_headers(const github_config *config, struct curl_slist **headers_out) {
     struct curl_slist *headers = NULL;
 
     int return_value = append_header("Authorization: Bearer ", config->pat, &headers);
@@ -286,7 +286,7 @@ cleanup:
     return return_value;
 }
 
-int update_repo_file_content(char *content) {
+int update_repo_file_content(const char *content) {
     github_config *config = NULL;
     struct curl_slist *headers = NULL;
     char *repo_endpoint = NULL;

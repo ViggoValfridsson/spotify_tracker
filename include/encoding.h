@@ -1,7 +1,7 @@
 #ifndef ENCODING_H
 #define ENCODING_H
 
-int base64_encode(char *input, int input_len, char **base64_out, int *size_out);
-int url_encode(char *input, int input_len, char **url_encode_out);
+int base64_encode(const char *input, int input_len, char **base64_out, int *size_out);
+int url_encode(const char *input, int input_len, char **url_encode_out);
 
 #endif

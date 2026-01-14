@@ -15,7 +15,7 @@
 #define FILE_CONTENT_INITIAL_SIZE 1000
 #define TIME_STRING_MAX_SIZE 128
 
-int append_string(char *input, char *content, int current_size, int current_pos, int *new_pos_out, int *new_size_out,
+int append_string(const char *input, char *content, int current_size, int current_pos, int *new_pos_out, int *new_size_out,
                   char **content_out) {
     int input_len = strlen(input);
     int new_size = current_size;
