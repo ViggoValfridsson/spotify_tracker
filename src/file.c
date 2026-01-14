@@ -20,8 +20,8 @@ void print_fopen_error() {
 }
 
 // Expand ~ to actual home directory path
-int expand_file_name(const char *file_name, char **resolved_name_out) {
-    int return_value = STATUS_ERROR;
+status_code expand_file_name(const char *file_name, char **resolved_name_out) {
+    status_code return_value = STATUS_ERROR;
 
     char *resolved_name = malloc(MAX_FILE_PATH);
     if (!resolved_name)
@@ -58,11 +58,11 @@ cleanup:
     return return_value;
 }
 
-int open_file(const char *file_name, const char *open_mode, FILE **file_out) {
+status_code open_file(const char *file_name, const char *open_mode, FILE **file_out) {
     char *resolved_name = NULL;
     errno = 0;
 
-    int return_value = expand_file_name(file_name, &resolved_name);
+    status_code return_value = expand_file_name(file_name, &resolved_name);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -81,7 +81,7 @@ cleanup:
     return return_value;
 }
 
-int get_file_size(FILE *file, long *size_out) {
+status_code get_file_size(FILE *file, long *size_out) {
     if (fseek(file, 0, SEEK_END) == -1) {
         perror("fseek");
         return STATUS_FILE_ERROR;
@@ -102,8 +102,8 @@ int get_file_size(FILE *file, long *size_out) {
     return STATUS_SUCCESS;
 }
 
-int read_file(FILE *file, long size, char **data_out) {
-    int return_value = STATUS_ERROR;
+status_code read_file(FILE *file, long size, char **data_out) {
+    status_code return_value = STATUS_ERROR;
     char *data = NULL;
 
     data = malloc(size + 1);
@@ -129,10 +129,10 @@ cleanup:
     return return_value;
 }
 
-int read_file_content(const char *file_path, char **file_content_out) {
+status_code read_file_content(const char *file_path, char **file_content_out) {
     FILE *file = NULL;
 
-    int return_value = open_file(file_path, "r", &file);
+    status_code return_value = open_file(file_path, "r", &file);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -156,8 +156,8 @@ cleanup:
     return return_value;
 }
 
-int write_file_overwrite(const char *file_path, const char *file_content) {
-    int return_value = STATUS_ERROR;
+status_code write_file_overwrite(const char *file_path, const char *file_content) {
+    status_code return_value = STATUS_ERROR;
 
     FILE *file = NULL;
     if (open_file(file_path, "w", &file) != STATUS_SUCCESS) {

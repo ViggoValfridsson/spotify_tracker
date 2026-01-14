@@ -21,10 +21,10 @@ typedef struct {
     char pat[256];
 } github_config;
 
-int parse_config_json(const char *file_content, github_config **config_out) {
+status_code parse_config_json(const char *file_content, github_config **config_out) {
     github_config *config = NULL;
     cJSON *json = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     json = cJSON_Parse(file_content);
     if (!json) {
@@ -67,11 +67,11 @@ cleanup:
     return return_value;
 }
 
-int read_github_config_file(const char *file_path, github_config **config_out) {
+status_code read_github_config_file(const char *file_path, github_config **config_out) {
     char *file_content = NULL;
     github_config *config = NULL;
 
-    int return_value = read_file_content(file_path, &file_content);
+    status_code return_value = read_file_content(file_path, &file_content);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -91,11 +91,11 @@ cleanup:
     return return_value;
 }
 
-int create_update_file_body(const char *message, const char *committer_name, const char *committer_email,
+status_code create_update_file_body(const char *message, const char *committer_name, const char *committer_email,
                             const char *sha, const char *content, char **json_out) {
     char *json_string = NULL;
     char *base64_content = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
     cJSON *root = NULL;
     cJSON *commiter = NULL;
 
@@ -149,10 +149,10 @@ cleanup:
     return return_value;
 }
 
-int parse_file_json(const char *input, char **sha_out) {
+status_code parse_file_json(const char *input, char **sha_out) {
     cJSON *json = cJSON_Parse(input);
     char *sha = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     if (!json) {
         fprintf(stderr, "File did not contain valid JSON\n");
@@ -184,10 +184,10 @@ cleanup:
     return return_value;
 }
 
-int get_existing_file_sha_headers(const github_config *config, struct curl_slist **headers_out) {
+status_code get_existing_file_sha_headers(const github_config *config, struct curl_slist **headers_out) {
     struct curl_slist *headers = NULL;
 
-    int return_value = append_header("Accept: ", "application/vnd.github+json", &headers);
+    status_code return_value = append_header("Accept: ", "application/vnd.github+json", &headers);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to append Accept header\n");
         goto cleanup;
@@ -216,12 +216,12 @@ cleanup:
     return return_value;
 }
 
-int get_existing_file_sha(const char *endpoint, const github_config *config, char **sha_out) {
+status_code get_existing_file_sha(const char *endpoint, const github_config *config, char **sha_out) {
     struct curl_slist *headers = NULL;
     char *sha = NULL;
     char *response = NULL;
 
-    int return_value = get_existing_file_sha_headers(config, &headers);
+    status_code return_value = get_existing_file_sha_headers(config, &headers);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -254,10 +254,10 @@ cleanup:
     return return_value;
 }
 
-int get_update_file_content_headers(const github_config *config, struct curl_slist **headers_out) {
+status_code get_update_file_content_headers(const github_config *config, struct curl_slist **headers_out) {
     struct curl_slist *headers = NULL;
 
-    int return_value = append_header("Authorization: Bearer ", config->pat, &headers);
+    status_code return_value = append_header("Authorization: Bearer ", config->pat, &headers);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create bearer token header\n");
         goto cleanup;
@@ -286,14 +286,14 @@ cleanup:
     return return_value;
 }
 
-int update_repo_file_content(const char *content) {
+status_code update_repo_file_content(const char *content) {
     github_config *config = NULL;
     struct curl_slist *headers = NULL;
     char *repo_endpoint = NULL;
     char *update_body = NULL;
     char *response = NULL;
     char *sha = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     return_value = read_github_config_file(CONFIG_FILE_PATH, &config);
     if (return_value != STATUS_SUCCESS) {

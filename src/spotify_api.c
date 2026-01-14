@@ -20,10 +20,10 @@
 #define TOP_TRACKS_ENDPOINT "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5&offset=0"
 #define REDIRECT_URI "https://httpbin.org/anything"
 
-int parse_credentials_json(const char *file_content, client_credentials **credentials_out) {
+status_code parse_credentials_json(const char *file_content, client_credentials **credentials_out) {
     cJSON *json = NULL;
     client_credentials *credentials = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     json = cJSON_Parse(file_content);
     if (!json) {
@@ -58,11 +58,11 @@ cleanup:
     return return_value;
 }
 
-int read_spotify_credentials_file(const char *credentials_file_path, client_credentials **credentials_out) {
+status_code read_spotify_credentials_file(const char *credentials_file_path, client_credentials **credentials_out) {
     client_credentials *credentials = NULL;
     char *file_content = NULL;
 
-    int return_value = read_file_content(credentials_file_path, &file_content);
+    status_code return_value = read_file_content(credentials_file_path, &file_content);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -82,11 +82,11 @@ cleanup:
     return return_value;
 }
 
-int get_access_token_header(struct curl_slist **header_out) {
+status_code get_access_token_header(struct curl_slist **header_out) {
     client_credentials *credentials = NULL;
     struct curl_slist *header = NULL;
 
-    int return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
+    status_code return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read credentials\n");
         goto cleanup;
@@ -116,12 +116,12 @@ cleanup:
     return return_value;
 }
 
-int get_access_token(const char *body, access_token **token_out) {
+status_code get_access_token(const char *body, access_token **token_out) {
     struct curl_slist *header = NULL;
     char *response = NULL;
     access_token *token = NULL;
 
-    int return_value = get_access_token_header(&header);
+    status_code return_value = get_access_token_header(&header);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to construct HTTP header\n");
         goto cleanup;
@@ -152,7 +152,7 @@ cleanup:
     return return_value;
 }
 
-int get_access_token_from_authorization_code(const char *redirect_code, access_token **token_out) {
+status_code get_access_token_from_authorization_code(const char *redirect_code, access_token **token_out) {
     access_token *token = NULL;
     char *body = NULL;
 
@@ -162,7 +162,7 @@ int get_access_token_from_authorization_code(const char *redirect_code, access_t
     size_t unused;
 
     int body_len = sizeof(body_kvps) / sizeof(body_kvps[0]);
-    int return_value = create_form_url_encoded_kvps(body_kvps, body_len, &body, &unused);
+    status_code return_value = create_form_url_encoded_kvps(body_kvps, body_len, &body, &unused);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
@@ -184,7 +184,7 @@ cleanup:
     return return_value;
 }
 
-int get_access_token_from_refresh_token(const char *refresh_token, access_token **token_out) {
+status_code get_access_token_from_refresh_token(const char *refresh_token, access_token **token_out) {
     access_token *token = NULL;
     char *body = NULL;
 
@@ -193,7 +193,7 @@ int get_access_token_from_refresh_token(const char *refresh_token, access_token 
     size_t unused_len;
 
     int body_len = sizeof(body_kvps) / sizeof(body_kvps[0]);
-    int return_value = create_form_url_encoded_kvps(body_kvps, body_len, &body, &unused_len);
+    status_code return_value = create_form_url_encoded_kvps(body_kvps, body_len, &body, &unused_len);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to URL encode body\n");
         goto cleanup;
@@ -215,11 +215,11 @@ cleanup:
     return return_value;
 }
 
-int create_authorization_endpoint(char **endpoint_out) {
+status_code create_authorization_endpoint(char **endpoint_out) {
     client_credentials *credentials = NULL;
     char *endpoint = NULL;
 
-    int return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
+    status_code return_value = read_spotify_credentials_file(CREDENTIALS_FILE_PATH, &credentials);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read credentials\n");
         goto cleanup;
@@ -251,10 +251,10 @@ cleanup:
     return return_value;
 }
 
-int authorize_application(char **redirect_code_out) {
+status_code authorize_application(char **redirect_code_out) {
     char *authorization_endpoint = NULL;
     char *redirect_code = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     return_value = create_authorization_endpoint(&authorization_endpoint);
     if (return_value != STATUS_SUCCESS) {
@@ -264,9 +264,9 @@ int authorize_application(char **redirect_code_out) {
 
     int max_input_len = 255;
     printf("Open the link to login and accept: %s\n", authorization_endpoint);
+
     return_value = get_input("After logging in paste \"code\" from the redirect URI query params here\n", max_input_len,
                              &redirect_code);
-
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read code from input\n");
         goto cleanup;
@@ -284,11 +284,11 @@ cleanup:
     return return_value;
 }
 
-int login() {
+status_code login() {
     char *redirect_code = NULL;
     access_token *token = NULL;
 
-    int return_value = authorize_application(&redirect_code);
+    status_code return_value = authorize_application(&redirect_code);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to authorize application\n");
         goto cleanup;
@@ -315,11 +315,11 @@ cleanup:
     return return_value;
 }
 
-int refresh_access_token(access_token **access_token_out) {
+status_code refresh_access_token(access_token **access_token_out) {
     char *refresh_token = NULL;
     access_token *token = NULL;
 
-    int return_value = read_file_content(REFRESH_TOKEN_FILE_PATH, &refresh_token);
+    status_code return_value = read_file_content(REFRESH_TOKEN_FILE_PATH, &refresh_token);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to read refresh token file. Have you logged in?\n");
         goto cleanup;
@@ -343,11 +343,11 @@ cleanup:
     return return_value;
 }
 
-int spotify_get(const char *url, const access_token *access_token, char **response_out) {
+status_code spotify_get(const char *url, const access_token *access_token, char **response_out) {
     struct curl_slist *header = NULL;
     char *response = NULL;
 
-    int return_value = append_header("Authorization: Bearer ", access_token->access_token, &header);
+    status_code return_value = append_header("Authorization: Bearer ", access_token->access_token, &header);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to create bearer token header\n");
         goto cleanup;
@@ -372,10 +372,10 @@ cleanup:
     return return_value;
 }
 
-int parse_items_array(const char *input, cJSON **items_out) {
+status_code parse_items_array(const char *input, cJSON **items_out) {
     cJSON *json = NULL;
-    int return_value = STATUS_ERROR;
     cJSON *items = NULL;
+    status_code return_value = STATUS_ERROR;
 
     json = cJSON_Parse(input);
     if (!json) {
@@ -401,7 +401,7 @@ cleanup:
     return return_value;
 }
 
-int parse_artist(const cJSON *item, artist *artist) {
+status_code parse_artist(const cJSON *item, artist *artist) {
     cJSON *name = cJSON_GetObjectItem(item, "name");
     if (!cJSON_IsString(name))
         return STATUS_ERROR;
@@ -410,11 +410,11 @@ int parse_artist(const cJSON *item, artist *artist) {
     return STATUS_SUCCESS;
 }
 
-int parse_artists(const char *input, artist **artists_out, int *artists_len_out) {
+status_code parse_artists(const char *input, artist **artists_out, int *artists_len_out) {
     cJSON *items = NULL;
     artist *artists = NULL;
 
-    int return_value = parse_items_array(input, &items);
+    status_code return_value = parse_items_array(input, &items);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Input did not contain items array\n");
         goto cleanup;
@@ -449,7 +449,7 @@ cleanup:
     return return_value;
 }
 
-int parse_song(const cJSON *item, song *song) {
+status_code parse_song(const cJSON *item, song *song) {
     cJSON *name = cJSON_GetObjectItem(item, "name");
     cJSON *artists = cJSON_GetObjectItem(item, "artists");
 
@@ -478,11 +478,11 @@ int parse_song(const cJSON *item, song *song) {
     return STATUS_SUCCESS;
 }
 
-int parse_songs(const char *input, song **songs_out, int *songs_len_out) {
+status_code parse_songs(const char *input, song **songs_out, int *songs_len_out) {
     cJSON *items = NULL;
     song *songs = NULL;
 
-    int return_value = parse_items_array(input, &items);
+    status_code return_value = parse_items_array(input, &items);
     if (return_value != STATUS_SUCCESS) {
         fprintf(stderr, "Input did not contain items array\n");
         goto cleanup;
@@ -518,11 +518,11 @@ cleanup:
     return return_value;
 }
 
-int get_top_artists(const access_token *access_token, artist **artists_out, int *artists_len_out) {
+status_code get_top_artists(const access_token *access_token, artist **artists_out, int *artists_len_out) {
     char *response = NULL;
     artist *artists = NULL;
 
-    int return_value = spotify_get(TOP_ARTISTS_ENDPOINT, access_token, &response);
+    status_code return_value = spotify_get(TOP_ARTISTS_ENDPOINT, access_token, &response);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -545,11 +545,11 @@ cleanup:
     return return_value;
 }
 
-int get_top_songs(const access_token *access_token, song **songs_out, int *songs_len_out) {
+status_code get_top_songs(const access_token *access_token, song **songs_out, int *songs_len_out) {
     char *response = NULL;
     song *songs = NULL;
 
-    int return_value = spotify_get(TOP_TRACKS_ENDPOINT, access_token, &response);
+    status_code return_value = spotify_get(TOP_TRACKS_ENDPOINT, access_token, &response);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 

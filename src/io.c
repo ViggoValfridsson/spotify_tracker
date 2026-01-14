@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-int get_input(const char *prompt, size_t max_len, char **input_out) {
-    int return_value = STATUS_ERROR;
+status_code get_input(const char *prompt, size_t max_len, char **input_out) {
+    status_code return_value = STATUS_ERROR;
 
     if (max_len == 0)
         return STATUS_ERROR;

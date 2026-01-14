@@ -15,7 +15,7 @@
 #define FILE_CONTENT_INITIAL_SIZE 1000
 #define TIME_STRING_MAX_SIZE 128
 
-int append_string(const char *input, char *content, int current_size, int current_pos, int *new_pos_out, int *new_size_out,
+status_code append_string(const char *input, char *content, int current_size, int current_pos, int *new_pos_out, int *new_size_out,
                   char **content_out) {
     int input_len = strlen(input);
     int new_size = current_size;
@@ -43,7 +43,7 @@ int append_string(const char *input, char *content, int current_size, int curren
     return STATUS_SUCCESS;
 }
 
-int format_artist_stats(char *content, int current_size, int pos, artist *artists, int artists_len, int *new_size_out,
+status_code format_artist_stats(char *content, int current_size, int pos, artist *artists, int artists_len, int *new_size_out,
                         int *pos_out) {
     if (append_string("## Top Artists\n", content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS)
         return STATUS_ERROR;
@@ -65,7 +65,7 @@ int format_artist_stats(char *content, int current_size, int pos, artist *artist
     return STATUS_SUCCESS;
 }
 
-int format_song_stats(char *content, int current_size, int pos, song *songs, int songs_len, int *new_size_out,
+status_code format_song_stats(char *content, int current_size, int pos, song *songs, int songs_len, int *new_size_out,
                       int *pos_out) {
     if (append_string("\n## Top Tracks\n", content, current_size, pos, &pos, &current_size, &content) != STATUS_SUCCESS)
         return STATUS_ERROR;
@@ -88,7 +88,7 @@ int format_song_stats(char *content, int current_size, int pos, song *songs, int
     return STATUS_SUCCESS;
 }
 
-int get_current_datetime(char **current_time_out) {
+status_code get_current_datetime(char **current_time_out) {
     char *formatted_time = NULL;
     int return_value = STATUS_ERROR;
 
@@ -125,12 +125,12 @@ cleanup:
     return return_value;
 }
 
-int format_file(artist *artists, int artists_len, song *songs, int songs_len, char **file_content_out) {
+status_code format_file(artist *artists, int artists_len, song *songs, int songs_len, char **file_content_out) {
     char *content = NULL;
     char *current_time = NULL;
     int current_size = FILE_CONTENT_INITIAL_SIZE;
     int pos = 0;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     content = malloc(current_size);
     if (!content) {
@@ -178,13 +178,13 @@ cleanup:
     return return_value;
 }
 
-int post_artists_to_github() {
+status_code post_artists_to_github() {
     access_token *token = NULL;
     artist *artists = NULL;
     song *songs = NULL;
     char *file_content = NULL;
 
-    int return_value = refresh_access_token(&token);
+    status_code return_value = refresh_access_token(&token);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 

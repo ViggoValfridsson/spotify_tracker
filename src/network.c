@@ -22,12 +22,12 @@ typedef struct {
 } response_chunks;
 
 // encoded_len_out does not include =/&
-int url_encode_kvp(const form_key_value_pair *kvp, char **key_out, char **value_out, int *encoded_len_out) {
+status_code url_encode_kvp(const form_key_value_pair *kvp, char **key_out, char **value_out, int *encoded_len_out) {
     char *encoded_key = NULL;
     char *encoded_value = NULL;
     int key_len = strlen(kvp->key);
     int value_len = strlen(kvp->value);
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     if (url_encode(kvp->key, key_len, &encoded_key) != STATUS_SUCCESS) {
         fprintf(stderr, "Failed to url encode key\n");
@@ -67,7 +67,7 @@ void free_encoded_kvps(encoded_kvp *encoded_kvps, int len) {
 }
 
 // Returned encoded_kvps have to be freed by calling free_encoded_kvps
-int url_encode_kvps(const form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_out, size_t *encoded_size_out) {
+status_code url_encode_kvps(const form_key_value_pair *kvps, int kvp_len, encoded_kvp **kvps_out, size_t *encoded_size_out) {
     size_t encoded_size = 0;
 
     encoded_kvp *encoded_kvps = malloc(sizeof(encoded_kvp) * kvp_len);
@@ -115,12 +115,12 @@ void write_encoded_kvps_to_body(char *body, const encoded_kvp *encoded_kvps, int
     body[position] = '\0';
 }
 
-int create_form_url_encoded_kvps(const form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
+status_code create_form_url_encoded_kvps(const form_key_value_pair *kvps, int kvp_len, char **body_out, size_t *size_out) {
     encoded_kvp *encoded_kvps = NULL;
     char *body = NULL;
 
     size_t encoded_size;
-    int return_value = url_encode_kvps(kvps, kvp_len, &encoded_kvps, &encoded_size);
+    status_code return_value = url_encode_kvps(kvps, kvp_len, &encoded_kvps, &encoded_size);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
 
@@ -147,13 +147,13 @@ cleanup:
     return return_value;
 }
 
-int append_query_params(const char *base_url, const form_key_value_pair *parameters, int parameter_len,
+status_code append_query_params(const char *base_url, const form_key_value_pair *parameters, int parameter_len,
                         char **endpoint_out) {
     char *encoded_parameters = NULL;
     char *endpoint = NULL;
 
     size_t encoded_params_len;
-    int return_value =
+    status_code return_value =
         create_form_url_encoded_kvps(parameters, parameter_len, &encoded_parameters, &encoded_params_len);
     if (return_value != STATUS_SUCCESS)
         goto cleanup;
@@ -178,12 +178,12 @@ cleanup:
     return return_value;
 }
 
-int append_basic_header(const char *username, const char *password, struct curl_slist **header_out) {
+status_code append_basic_header(const char *username, const char *password, struct curl_slist **header_out) {
     char credentials[CREDENTIALS_MAX];
     char *basic_header = NULL;
     char *base64_credentials = NULL;
     struct curl_slist *header = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     int snprint_res = snprintf(credentials, sizeof(credentials), "%s:%s", username, password);
     if (snprint_res >= CREDENTIALS_MAX) {
@@ -235,10 +235,10 @@ cleanup:
     return return_value;
 }
 
-int append_header(const char *prefix, const char *value, struct curl_slist **header_out) {
+status_code append_header(const char *prefix, const char *value, struct curl_slist **header_out) {
     struct curl_slist *header = NULL;
     char *header_value = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     int prefix_len = strlen(prefix);
     int value_len = strlen(value);
@@ -272,7 +272,7 @@ cleanup:
     return return_value;
 }
 
-int get_status(int http_code) {
+status_code get_status(int http_code) {
     if (http_code >= 200 && http_code <= 300)
         return STATUS_SUCCESS;
     else if (http_code == 401 || http_code == 403)
@@ -294,7 +294,7 @@ size_t read_response_callback(void *contents, size_t size, size_t nmemb, void *u
     chunks->data = realloc(chunks->data, chunks->size + real_size + 1);
     if (!chunks->data) {
         perror("realloc");
-        return STATUS_ERROR;
+        return -1;
     }
 
     memcpy(&(chunks->data[chunks->size]), contents, real_size);
@@ -304,7 +304,7 @@ size_t read_response_callback(void *contents, size_t size, size_t nmemb, void *u
     return real_size;
 }
 
-int http_request(const char *url, const struct curl_slist *headers, const char *body, const char *method,
+status_code http_request(const char *url, const struct curl_slist *headers, const char *body, const char *method,
                  char **response_out) {
     CURL *curl = curl_easy_init();
     if (!curl) {
@@ -349,10 +349,10 @@ int http_request(const char *url, const struct curl_slist *headers, const char *
     return result == CURLE_OK ? get_status(http_code) : STATUS_NETWORK_ERROR;
 }
 
-int parse_token_response(const char *input, access_token **token_out) {
+status_code parse_token_response(const char *input, access_token **token_out) {
     cJSON *json = NULL;
     struct access_token *token = NULL;
-    int return_value = STATUS_ERROR;
+    status_code return_value = STATUS_ERROR;
 
     json = cJSON_Parse(input);
     if (!json) {
